@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "WLL Tracker": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}
