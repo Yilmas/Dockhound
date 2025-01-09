@@ -27,6 +27,6 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile
+          file: ./WLL Tracker/Dockerfile
           push: true
           tags: ghcr.io/${{ steps.lower-repo.outputs.repository }}:latest,ghcr.io/${{ steps.lower-repo.outputs.repository }}:${{ github.ref_name }}
