@@ -1,7 +1,6 @@
-version: '3.9' # Minimum version required for secrets
-
 services:
-  my_service:
-    image: my_image:latest
-    container_name: my_container
-    env_file: "dev.env"
+  wlltracker:
+    #image: wlltracker:dev
+    build: WLL Tracker/
+    environment:
+      - WLL_token=${WLL_token}
