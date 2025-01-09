@@ -44,7 +44,7 @@ public class CommandModule : InteractionModuleBase<SocketInteractionContext>
                         .WithName("Job Board")
                         .WithValue("Waiting for Jobs ...")
                     )
-                .WithFooter("Brough to you by WLL Cannonsmoke");
+                .WithFooter("Brought to you by WLL Cannonsmoke");
 
             var builder = new ComponentBuilder()
                 .WithButton(label: "Edit Container Count", "btn-container-count", style: ButtonStyle.Secondary)
@@ -71,7 +71,7 @@ public class CommandModule : InteractionModuleBase<SocketInteractionContext>
                         .WithName("Log")
                         .WithValue("location\nasd")
                     )
-                .WithFooter("Brough to you by WLL Cannonsmoke");
+                .WithFooter("Brought to you by WLL Cannonsmoke");
 
                 await RespondAsync(embed: embed.Build());
             }
