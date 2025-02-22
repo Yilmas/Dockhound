@@ -47,16 +47,14 @@ public class Program
         client.Log += LogAsync;
 
         await _services.GetRequiredService<InteractionHandler>().InitializeAsync();
-
-        if(_configuration["token"] != null)
+        
+        if (_configuration["token"] != null)
             Console.WriteLine("[LOG] Token Acquired!");
         else
         {
             Console.WriteLine("[ERROR] Token Missing!");
             Environment.Exit(1);
         }
-            
-            
 
         await client.LoginAsync(TokenType.Bot, _configuration["token"]);
         await client.StartAsync();
@@ -70,6 +68,4 @@ public class Program
         Console.WriteLine(log.ToString());
         return Task.CompletedTask;
     }
-
-
 }

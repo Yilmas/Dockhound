@@ -9,6 +9,7 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using System.Windows.Input;
 using System.Xml.XPath;
 using WLL_Tracker.Logs;
 
@@ -52,10 +53,29 @@ public class InteractionHandler
 
     private async Task ReadyAsync()
     {
-        //await _handler.RegisterCommandsGloballyAsync();
+        await DeleteAllCommandsAsync();
+
         foreach (var item in _client.Guilds)
         {
             await _handler.RegisterCommandsToGuildAsync(guildId: item.Id, deleteMissing: true);
+        }
+    }
+
+    public async Task DeleteAllCommandsAsync()
+    {
+        var globalCommands = await _client.Rest.GetGlobalApplicationCommands();
+        foreach (var command in globalCommands)
+        {
+            await command.DeleteAsync();
+        }
+
+        foreach (var guild in _client.Guilds)
+        {
+            var guildCommands = await _client.Rest.GetGuildApplicationCommands(guild.Id);
+            foreach (var command in guildCommands)
+            {
+                await command.DeleteAsync();
+            }
         }
     }
 
@@ -115,7 +135,15 @@ public class InteractionHandler
                     context.Interaction.RespondAsync("Invalid number or arguments", ephemeral: true);
                     break;
                 case InteractionCommandError.Exception:
-                    context.Interaction.RespondAsync($"Command exception: {result.ErrorReason}", ephemeral: true);
+                    if (result.ErrorReason.Contains("valid DateTime"))
+                    {
+                        // Tell the user a valid format for dates
+                        context.Interaction.RespondAsync($"**Date format error:** Please use **`2024-02-22` → `yyyy-MM-dd`** instead. Optional: With time via **`2024-02-22 15:30` → `yyyy-MM-dd HH:mm`**", ephemeral: true);
+                    }
+                    else
+                    {
+                        context.Interaction.RespondAsync($"Command exception: {result.ErrorReason}", ephemeral: true);
+                    }
                     break;
                 case InteractionCommandError.Unsuccessful:
                     context.Interaction.RespondAsync("Command could not be executed", ephemeral: true);
@@ -175,7 +203,7 @@ public class InteractionHandler
                     return;
                 }
             }
-
+            
             var msgBoardEmbed = arg.Message.Embeds.First().ToEmbedBuilder();
             var boardValue = msgBoardEmbed.Fields.Single(x => x.Name == "Job Board").Value;
 
@@ -186,6 +214,25 @@ public class InteractionHandler
 
             await arg.RespondWithModalAsync(modalBoard.Build());
         }
+
+        if (arg.Data.CustomId == "btn-whiteboard-update")
+        {
+            if (arg.GuildId == null)
+            {
+                await arg.RespondAsync("Must be used in a guild.", ephemeral: true);
+                return;
+            }
+
+            var msgBoardEmbed = arg.Message.Embeds.First().ToEmbedBuilder();
+            var boardValue = msgBoardEmbed.Fields.Single(x => x.Name == "Messages").Value;
+
+            var modalBoard = new ModalBuilder()
+                .WithTitle($"Add Message")
+                .WithCustomId("update-whiteboard-modal")
+                .AddTextInput("Message", "update-whiteboard-edit", TextInputStyle.Paragraph, value: boardValue.ToString(), maxLength: 1024, required: true);
+
+            await arg.RespondWithModalAsync(modalBoard.Build());
+        }
     }
 
     public async Task ModalSubmitted(SocketModal arg)
@@ -193,7 +240,7 @@ public class InteractionHandler
         long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
         var comp = arg.Data.Components.First();
 
-        /// Count
+        // Count
         if (arg.Data.CustomId == "update-count-modal")
         {
             var red = arg.Data.Components.Single(x => x.CustomId == "update-count-red").Value;
@@ -245,10 +292,10 @@ public class InteractionHandler
                 var location = arg.Message.Embeds.First().Title;
 
                 var log = new LogEvent(
-                    id: location,
-                    author: arg.User.Mention,
+                    id: arg.Message.Id + "|" + location,
+                    author: arg.User.Username +"|"+ arg.User.Mention,
                     updated: DateTime.UtcNow,
-                    changes: new List<string>()
+                    changes: new List<string> { "Updated the count" }
                     );
 
                 _ = log.SaveLog();
@@ -256,7 +303,7 @@ public class InteractionHandler
             
         }
 
-        /// Board
+        // Board
         if (arg.Data.CustomId == "update-board-modal")
         {
             var msg = await arg.Channel.GetMessageAsync(arg.Message.Id);
@@ -269,6 +316,47 @@ public class InteractionHandler
             {
                 x.Embed = msgEmbed.Build();
             });
+
+            // Log event with updated fields, author, timestamp UTC
+
+            var location = arg.Message.Embeds.First().Title;
+
+            var log = new LogEvent(
+                id: arg.Message.Id + "|" + location,
+                author: arg.User.Username + "|" + arg.User.Mention,
+                updated: DateTime.UtcNow,
+                changes: new List<string> { "Updated the job board" }
+            );
+
+            _ = log.SaveLog();
+        }
+
+        // Whiteboard
+        if (arg.Data.CustomId == "update-whiteboard-modal")
+        {
+            var msg = await arg.Channel.GetMessageAsync(arg.Message.Id);
+
+            var msgEmbed = msg.Embeds.First().ToEmbedBuilder();
+            msgEmbed.WithDescription("Last Updated by " + arg.User.Mention + " <t:" + seconds + ":R>");
+            msgEmbed.Fields.Single(x => x.Name == "Messages").Value = (comp.Value == string.Empty ? "Waiting for squibbles ..." : comp.Value);
+
+            await arg.UpdateAsync(x =>
+            {
+                x.Embed = msgEmbed.Build();
+            });
+
+            // Log event with updated fields, author, timestamp UTC
+
+            var location = arg.Message.Embeds.First().Title;
+
+            var log = new LogEvent(
+                id: arg.Message.Id + "|" + location,
+                author: arg.User.Username + "|" + arg.User.Mention,
+                updated: DateTime.UtcNow,
+                changes: new List<string> { "Updated whiteboard" }
+            );
+
+            _ = log.SaveLog();
         }
 
     }

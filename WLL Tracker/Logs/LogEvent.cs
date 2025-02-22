@@ -28,17 +28,15 @@ namespace WLL_Tracker.Logs
 
             if (!File.Exists(path))
             {
-                File.Create(path);
-                TextWriter tw = new StreamWriter(path);
-                tw.Close();
+                using (File.Create(path)) { }
             }
-            else if (File.Exists(path))
+
+            using (var sw = new StreamWriter(path, true))
             {
-                using (var sw = new StreamWriter(path, true))
-                {
-                    sw.WriteLine(JsonConvert.SerializeObject(this));
-                }
+                await sw.WriteLineAsync(JsonConvert.SerializeObject(this));
             }
+
+            Console.WriteLine($"[LOG] LogEvent, created by {Author}");
         }
 
     }

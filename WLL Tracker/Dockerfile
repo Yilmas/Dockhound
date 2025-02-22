@@ -9,7 +9,7 @@ RUN dotnet restore
 RUN dotnet publish -o out
 
 # Build runtime image
-FROM mcr.microsoft.com/dotnet/sdk:6.0
+FROM mcr.microsoft.com/dotnet/runtime:6.0
 WORKDIR /App
 COPY --from=build /App/out .
 ENTRYPOINT ["dotnet", "WLL Tracker.dll"]

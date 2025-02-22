@@ -1,6 +1,7 @@
 services:
   wlltracker:
     #image: wlltracker:dev
+    restart: unless-stopped
     build: WLL Tracker/
     environment:
       - WLL_token=${WLL_token}

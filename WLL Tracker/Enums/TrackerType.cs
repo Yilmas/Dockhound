@@ -8,7 +8,6 @@ namespace WLL_Tracker.Enums;
 
 public enum TrackerType
 {
-    Container,
-    Pcon
+    Container
 }
 
