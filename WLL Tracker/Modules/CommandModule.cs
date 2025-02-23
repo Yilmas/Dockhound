@@ -111,7 +111,7 @@ public class CommandModule : InteractionModuleBase<SocketInteractionContext>
             });
         }
 
-        [DefaultMemberPermissions(GuildPermission.ViewAuditLog | GuildPermission.ManageMessages)]
+        [RequireUserPermission(GuildPermission.ViewAuditLog | GuildPermission.ManageMessages)]
         [SlashCommand("log", "[EXPERIMENTAL] Display recent log of activity.")]
         public async Task TrackerLog(string query = "all", DateTime? startDate = null, DateTime? endDate = null)
         {
