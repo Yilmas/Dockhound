@@ -224,12 +224,15 @@ public class InteractionHandler
             }
 
             var msgBoardEmbed = arg.Message.Embeds.First().ToEmbedBuilder();
-            var boardValue = msgBoardEmbed.Fields.Single(x => x.Name == "Messages").Value;
+
+            var lines = msgBoardEmbed.Description.Split(new[] { '\r', '\n' }, StringSplitOptions.None);
+            var modLines = lines.Take((lines.Length - 2));
+            string boardValue = string.Join("\n", modLines);
 
             var modalBoard = new ModalBuilder()
                 .WithTitle($"Add Message")
                 .WithCustomId("update-whiteboard-modal")
-                .AddTextInput("Message", "update-whiteboard-edit", TextInputStyle.Paragraph, value: boardValue.ToString(), maxLength: 1024, required: true);
+                .AddTextInput("Message", "update-whiteboard-edit", TextInputStyle.Paragraph, value: boardValue, maxLength: 2048, required: true);
 
             await arg.RespondWithModalAsync(modalBoard.Build());
         }
@@ -337,8 +340,7 @@ public class InteractionHandler
             var msg = await arg.Channel.GetMessageAsync(arg.Message.Id);
 
             var msgEmbed = msg.Embeds.First().ToEmbedBuilder();
-            msgEmbed.WithDescription("Last Updated by " + arg.User.Mention + " <t:" + seconds + ":R>");
-            msgEmbed.Fields.Single(x => x.Name == "Messages").Value = (comp.Value == string.Empty ? "Waiting for squibbles ..." : comp.Value);
+            msgEmbed.Description = (comp.Value == string.Empty ? "Waiting for squibbles ..." : comp.Value + "\n\n_Last Updated by " + arg.User.Mention + " <t:" + seconds + ":R>_");
 
             await arg.UpdateAsync(x =>
             {

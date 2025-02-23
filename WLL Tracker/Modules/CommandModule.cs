@@ -12,6 +12,7 @@ using WLL_Tracker.Extensions;
 using WLL_Tracker.Logs;
 using System.IO;
 using System.Collections;
+using System.Threading.Channels;
 
 namespace WLL_Tracker.Modules;
 
@@ -80,18 +81,10 @@ public class CommandModule : InteractionModuleBase<SocketInteractionContext>
         public async Task SetupWhiteboard(string title = "Whiteboard", bool pin = false)
         {
             long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
-            string channel = Context.Channel.Name.StartsWith("c-") ? Context.Channel.Name.Remove(0, 2).Replace("-", " ").ToTitleCase() : "WLL Cannonsmoke";
-        
 
             var embed = new EmbedBuilder()
                 .WithTitle($"{title}")
-                .WithDescription("Last Updated by " + Context.User.Mention + " <t:" + seconds + ":R>")
-                .WithFields(
-                    new EmbedFieldBuilder()
-                        .WithName("Messages")
-                        .WithValue("Waiting for squibbles ...")
-                )
-                .WithFooter($"Brought to you by {channel}");
+                .WithDescription("**Messages**\nWaiting for Squibbles\n\n_Last Updated by " + Context.User.Mention + " <t:" + seconds + ":R>_");
 
             var builder = new ComponentBuilder()
                 .WithButton(label: "Update Board", "btn-whiteboard-update", style: ButtonStyle.Secondary);
@@ -117,7 +110,7 @@ public class CommandModule : InteractionModuleBase<SocketInteractionContext>
                 _ = log.SaveLog();
             });
         }
-        
+
         [DefaultMemberPermissions(GuildPermission.ViewAuditLog | GuildPermission.ManageMessages)]
         [SlashCommand("log", "[EXPERIMENTAL] Display recent log of activity.")]
         public async Task TrackerLog(string query = "all", DateTime? startDate = null, DateTime? endDate = null)
