@@ -128,7 +128,7 @@ public class CommandModule : InteractionModuleBase<SocketInteractionContext>
 
             if (filteredEvents.Count == 0)
             {
-                await RespondAsync("No log entries found matching the query.");
+                await RespondAsync("No log entries found matching the query.", ephemeral: true);
                 return;
             }
 
@@ -137,13 +137,13 @@ public class CommandModule : InteractionModuleBase<SocketInteractionContext>
                 filteredEvents = LogFilter.ApplyDateRangeFilter(filteredEvents, startDate, endDate);
                 if (filteredEvents.Count == 0)
                 {
-                    await RespondAsync("No log entries found within the specified date range.");
+                    await RespondAsync("No log entries found within the specified date range.", ephemeral: true);
                     return;
                 }
             }
 
             var memoryStream = LogFilter.ConvertToMemoryStream(filteredEvents);
-            await RespondWithFileAsync(memoryStream, "filtered_logs.txt", "Here are the filtered log entries.");
+            await RespondWithFileAsync(memoryStream, "filtered_logs.txt", "Here are the filtered log entries.", ephemeral: true);
 
             await GetOriginalResponseAsync().ContinueWith(async (msg) =>
             {
