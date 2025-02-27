@@ -13,6 +13,7 @@ using WLL_Tracker.Logs;
 using System.IO;
 using System.Collections;
 using System.Threading.Channels;
+using WLL_Tracker.Models;
 
 namespace WLL_Tracker.Modules;
 
@@ -31,6 +32,13 @@ public class CommandModule : InteractionModuleBase<SocketInteractionContext>
     [Group("tracker", "desc")]
     public class GroupSetup : InteractionModuleBase<SocketInteractionContext>
     {
+        private readonly WllTrackerContext _dbContext;
+
+        public GroupSetup(WllTrackerContext dbContext)
+        {
+            _dbContext = dbContext;
+        }
+
         [DefaultMemberPermissions(GuildPermission.ManageMessages)]
         [SlashCommand("setup", "Initial setup of a tracker.")]
         public async Task SetupTracker(TrackerType type, string location = "RR")
@@ -59,20 +67,25 @@ public class CommandModule : InteractionModuleBase<SocketInteractionContext>
                     .WithButton(label: "Edit Job Board", "btn-board-edit", style: ButtonStyle.Secondary);
 
                 await RespondAsync(embed: embed.Build(), components: builder.Build());
-
-                await GetOriginalResponseAsync().ContinueWith(async (msg) => 
+                
+                try
                 {
-                    // Log event with updated fields, author, timestamp UTC
-                    
+                    var msg = await GetOriginalResponseAsync();
+
                     var log = new LogEvent(
-                        id: msg.Result.Id + "|" + $"{location} Container Yard",
+                        id: msg.Id + "|" + $"{location} Container Yard",
                         author: Context.User.Username + "|" + Context.User.Mention,
                         updated: DateTime.UtcNow,
-                        changes: new List<string>{"Created Yard Tracker"}
+                        changes: new List<string> { "Created Yard Tracker" }
                     );
 
-                    _ = log.SaveLog();
-                });
+                    _dbContext.LogEvents.Add(log);
+                    await _dbContext.SaveChangesAsync();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
+                }
 
             }
         }

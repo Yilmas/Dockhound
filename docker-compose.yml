@@ -5,3 +5,13 @@ services:
     build: WLL Tracker/
     environment:
       - WLL_token=${WLL_token}
+  grafana:
+    image: grafana/grafana-enterprise
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    volumes:
+      - grafana-storage:/WLL Grafana
+volumes:
+  grafana-storage: {}

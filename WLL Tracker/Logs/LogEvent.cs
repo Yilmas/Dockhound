@@ -14,6 +14,11 @@ namespace WLL_Tracker.Logs
         public DateTime Updated { get; set; }
         public List<string> Changes { get; set; }
 
+        public LogEvent()
+        {
+
+        }
+
         public LogEvent(string id, string author, DateTime updated, List<string> changes)
         {
             Id = id;
