@@ -177,11 +177,11 @@ public class InteractionHandler
             var modal = new ModalBuilder()
                 .WithTitle($"Update Container Count")
                 .WithCustomId("update-count-modal")
-                .AddTextInput("Red", $"update-count-red", value: countRed.ToString(), minLength: 1, maxLength: 2)
-                .AddTextInput("Green", $"update-count-green", value: countGreen.ToString(), minLength: 1, maxLength: 2)
-                .AddTextInput("Blue", $"update-count-blue", value: countBlue.ToString(), minLength: 1, maxLength: 2)
-                .AddTextInput("Dark Blue", $"update-count-darkblue", value: countDarkBlue.ToString(), minLength: 1, maxLength: 2)
-                .AddTextInput("White", $"update-count-white", value: countWhite.ToString(), minLength: 1, maxLength: 2);
+                .AddTextInput("Red", $"update-count-red", value: countRed.ToString(), minLength: 1, maxLength: 3)
+                .AddTextInput("Green", $"update-count-green", value: countGreen.ToString(), minLength: 1, maxLength: 3)
+                .AddTextInput("Blue", $"update-count-blue", value: countBlue.ToString(), minLength: 1, maxLength: 3)
+                .AddTextInput("Dark Blue", $"update-count-darkblue", value: countDarkBlue.ToString(), minLength: 1, maxLength: 3)
+                .AddTextInput("White", $"update-count-white", value: countWhite.ToString(), minLength: 1, maxLength: 3);
 
             await arg.RespondWithModalAsync(modal.Build());
         }

@@ -29,7 +29,7 @@ public class CommandModule : InteractionModuleBase<SocketInteractionContext>
     }
 
     [CommandContextType(InteractionContextType.Guild)]
-    [Group("tracker", "desc")]
+    [Group("tracker", "Root command of Dockhound")]
     public class GroupSetup : InteractionModuleBase<SocketInteractionContext>
     {
         private readonly WllTrackerContext _dbContext;
@@ -41,7 +41,7 @@ public class CommandModule : InteractionModuleBase<SocketInteractionContext>
 
         [DefaultMemberPermissions(GuildPermission.ManageMessages)]
         [SlashCommand("setup", "Initial setup of a tracker.")]
-        public async Task SetupTracker(TrackerType type, string location = "RR")
+        public async Task SetupTracker(TrackerType type, string location)
         {
             long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 
@@ -81,7 +81,6 @@ public class CommandModule : InteractionModuleBase<SocketInteractionContext>
                 {
                     Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
                 }
-
             }
         }
 
