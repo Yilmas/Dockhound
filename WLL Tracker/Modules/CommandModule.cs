@@ -73,10 +73,11 @@ public class CommandModule : InteractionModuleBase<SocketInteractionContext>
                     var msg = await GetOriginalResponseAsync();
 
                     var log = new LogEvent(
-                        id: msg.Id + "|" + $"{location} Container Yard",
-                        author: Context.User.Username + "|" + Context.User.Mention,
-                        updated: DateTime.UtcNow,
-                        changes: new List<string> { "Created Yard Tracker" }
+                        eventName: "Yard Tracker Setup",
+                        messageId: msg.Id,
+                        username: Context.User.Username,
+                        userId: Context.User.Id,
+                        changes: $"Created Yard Tracker: {location}"
                     );
 
                     _dbContext.LogEvents.Add(log);
@@ -109,61 +110,60 @@ public class CommandModule : InteractionModuleBase<SocketInteractionContext>
                 await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.PinAsync());
             }
 
-            await GetOriginalResponseAsync().ContinueWith(async (msg) =>
+            try
             {
-                // Log event with updated fields, author, timestamp UTC
+                var msg = await GetOriginalResponseAsync();
 
                 var log = new LogEvent(
-                    id: msg.Result.Id + "|" + $"{title}",
-                    author: Context.User.Username + "|" + Context.User.Mention,
-                    updated: DateTime.UtcNow,
-                    changes: new List<string> { "Created Whiteboard" }
+                    eventName: "Whiteboard Setup",
+                    messageId: msg.Id,
+                    username: Context.User.Username,
+                    userId: Context.User.Id,
+                    changes: $"Created Whiteboard: {title}"
                 );
 
-                _ = log.SaveLog();
-            });
+                _dbContext.LogEvents.Add(log);
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
+            }
         }
 
-        [RequireUserPermission(GuildPermission.ViewAuditLog | GuildPermission.ManageMessages)]
-        [SlashCommand("log", "[EXPERIMENTAL] Display recent log of activity.")]
+        [RequireUserPermission(GuildPermission.ViewAuditLog | GuildPermission.ManageMessages, Group = "a")]
+        [RequireUserPermission(ChannelPermission.ManageMessages, Group = "a")]
+        [SlashCommand("log", "Display audit log for the bot.")]
         public async Task TrackerLog(string query = "all", DateTime? startDate = null, DateTime? endDate = null)
         {
-            string inputFilePath = "./log.txt";
 
-            var filteredEvents = await LogFilter.LoadLogEventsAsync(inputFilePath, query);
+            var lookup = await LogFilter.LookupLogEventsAsync(_dbContext, query, startDate, endDate);
 
-            if (filteredEvents.Count == 0)
+            var memoryStream = LogFilter.ConvertToMemoryStream(lookup);
+
+            string start = startDate?.ToString("yyyyMMdd_HHmmss") ?? "start";
+            string end = endDate?.ToString("yyyyMMdd_HHmmss") ?? "now";
+
+            await RespondWithFileAsync(memoryStream, $"logs_{start}_to_{end}.json", "Here are the filtered log entries.", ephemeral: true);
+
+            try
             {
-                await RespondAsync("No log entries found matching the query.", ephemeral: true);
-                return;
-            }
-
-            if (startDate.HasValue || endDate.HasValue)
-            {
-                filteredEvents = LogFilter.ApplyDateRangeFilter(filteredEvents, startDate, endDate);
-                if (filteredEvents.Count == 0)
-                {
-                    await RespondAsync("No log entries found within the specified date range.", ephemeral: true);
-                    return;
-                }
-            }
-
-            var memoryStream = LogFilter.ConvertToMemoryStream(filteredEvents);
-            await RespondWithFileAsync(memoryStream, "filtered_logs.txt", "Here are the filtered log entries.", ephemeral: true);
-
-            await GetOriginalResponseAsync().ContinueWith(async (msg) =>
-            {
-                // Log event with updated fields, author, timestamp UTC
+                var msg = await GetOriginalResponseAsync();
 
                 var log = new LogEvent(
-                    id: msg.Result.Id + "|" + "Log Retrieval",
-                    author: Context.User.Username + "|" + Context.User.Mention,
-                    updated: DateTime.UtcNow,
-                    changes: new List<string> { "Retrieve Log" }
+                    eventName: "Log Retrieval",
+                    messageId: msg.Id,
+                    username: Context.User.Username,
+                    userId: Context.User.Id
                 );
 
-                _ = log.SaveLog();
-            });
+                _dbContext.LogEvents.Add(log);
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
+            }
         }
     }
 }

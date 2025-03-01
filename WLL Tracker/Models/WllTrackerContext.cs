@@ -14,6 +14,14 @@ public partial class WllTrackerContext : DbContext
 
     public WllTrackerContext(DbContextOptions<WllTrackerContext> options) : base(options) { }
 
+    //protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    //{
+    //    if (!optionsBuilder.IsConfigured)
+    //    {
+    //        optionsBuilder.UseSqlServer("Server=10.200.1.4;User ID=wll_yilmas;Password=JyC&7BEuqaSxCpW;Database=wll_tracker;Trusted_Connection=False;TrustServerCertificate=true;");
+    //    }
+    //}
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         OnModelCreatingPartial(modelBuilder);

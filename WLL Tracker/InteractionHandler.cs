@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Xml.XPath;
 using WLL_Tracker.Logs;
+using WLL_Tracker.Models;
 
 namespace WLL_Tracker;
 
@@ -22,13 +23,15 @@ public class InteractionHandler
     private readonly InteractionService _handler;
     private readonly IServiceProvider _services;
     private readonly IConfiguration _configuration;
+    private readonly WllTrackerContext _dbContext;
 
-    public InteractionHandler(DiscordSocketClient client, InteractionService handler, IServiceProvider services, IConfiguration config)
+    public InteractionHandler(DiscordSocketClient client, InteractionService handler, IServiceProvider services, IConfiguration config, WllTrackerContext dbContext)
     {
         _client = client;
         _handler = handler;
         _services = services;
         _configuration = config;
+        _dbContext = dbContext;
     }
 
     public async Task InitializeAsync()
@@ -294,14 +297,23 @@ public class InteractionHandler
 
                 var location = arg.Message.Embeds.First().Title;
 
-                var log = new LogEvent(
-                    id: arg.Message.Id + "|" + location,
-                    author: arg.User.Username +"|"+ arg.User.Mention,
-                    updated: DateTime.UtcNow,
-                    changes: new List<string> { "Updated the count" }
+                try
+                {
+                    var log = new LogEvent(
+                        eventName: "Updated Yard Tracker",
+                        messageId: arg.Message.Id,
+                        username: arg.User.Username,
+                        userId: arg.User.Id,
+                        changes: $"Updated the count for {location}: Red: {red}, Green: {green}, Blue: {blue}, Dark Blue: {darkblue}, White: {white}"
                     );
 
-                _ = log.SaveLog();
+                    _dbContext.LogEvents.Add(log);
+                    await _dbContext.SaveChangesAsync();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
+                }
             }
             
         }
@@ -319,19 +331,26 @@ public class InteractionHandler
             {
                 x.Embed = msgEmbed.Build();
             });
-
-            // Log event with updated fields, author, timestamp UTC
-
+            
             var location = arg.Message.Embeds.First().Title;
 
-            var log = new LogEvent(
-                id: arg.Message.Id + "|" + location,
-                author: arg.User.Username + "|" + arg.User.Mention,
-                updated: DateTime.UtcNow,
-                changes: new List<string> { "Updated the job board" }
-            );
+            try
+            {
+                var log = new LogEvent(
+                    eventName: "Updated Job Board",
+                    messageId: arg.Message.Id,
+                    username: arg.User.Username,
+                    userId: arg.User.Id,
+                    changes: $"Updated the job board for {location}"
+                );
 
-            _ = log.SaveLog();
+                _dbContext.LogEvents.Add(log);
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
+            }
         }
 
         // Whiteboard
@@ -347,18 +366,25 @@ public class InteractionHandler
                 x.Embed = msgEmbed.Build();
             });
 
-            // Log event with updated fields, author, timestamp UTC
-
             var location = arg.Message.Embeds.First().Title;
 
-            var log = new LogEvent(
-                id: arg.Message.Id + "|" + location,
-                author: arg.User.Username + "|" + arg.User.Mention,
-                updated: DateTime.UtcNow,
-                changes: new List<string> { "Updated whiteboard" }
-            );
+            try
+            {
+                var log = new LogEvent(
+                    eventName: "Updated Whiteboard",
+                    messageId: arg.Message.Id,
+                    username: arg.User.Username,
+                    userId: arg.User.Id,
+                    changes: $"Updated the whiteboard for {location}"
+                );
 
-            _ = log.SaveLog();
+                _dbContext.LogEvents.Add(log);
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
+            }
         }
 
     }

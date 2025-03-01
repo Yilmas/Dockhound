@@ -1,48 +1,46 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using System.Reactive;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using WLL_Tracker.Enums;
 
 namespace WLL_Tracker.Logs
 {
+    [Index(nameof(Updated))]
     public class LogEvent
     {
-        public string Id { get; set; }
-        public string Author { get; set; }
-        public DateTime Updated { get; set; }
-        public List<string> Changes { get; set; }
+        [Key]
+        public int Id { get; set; }
+        [Required] public string EventName { get; set; }
+        public ulong MessageId { get; set; }
+        [Required] public string Username { get; set; }
+        [Required] public ulong UserId { get; set; }
+        [Required] public DateTime Updated { get; set; }
+        [Required] public EnvironmentState Env { get; set; }
+        public string? Changes { get; set; }
 
-        public LogEvent()
+        public LogEvent() {}
+
+        public LogEvent(string eventName, ulong messageId, string username, ulong userId, DateTime? updated = null, string? changes = null)
         {
-
-        }
-
-        public LogEvent(string id, string author, DateTime updated, List<string> changes)
-        {
-            Id = id;
-            Author = author;
-            Updated = updated;
+            EventName = eventName;
+            MessageId = messageId;
+            Username = username;
+            UserId = userId;
+            Updated = updated ?? DateTime.UtcNow;
+            Env = EnvironmentState.Development; //Set based on .env
             Changes = changes;
-        }
 
-        public async Task SaveLog()
+            Console.WriteLine($"[LOG] LogEvent, created by {Username}");
+        }
+        public T? GetChanges<T>()
         {
-            string path = "./log.txt";
-
-            if (!File.Exists(path))
-            {
-                using (File.Create(path)) { }
-            }
-
-            using (var sw = new StreamWriter(path, true))
-            {
-                await sw.WriteLineAsync(JsonConvert.SerializeObject(this));
-            }
-
-            Console.WriteLine($"[LOG] LogEvent, created by {Author}");
+            return Changes != null ? JsonConvert.DeserializeObject<T>(Changes) : default;
         }
-
     }
 }

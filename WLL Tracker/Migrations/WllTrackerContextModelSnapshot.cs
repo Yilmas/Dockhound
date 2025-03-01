@@ -33,6 +33,9 @@ namespace WLL_Tracker.Migrations
                     b.Property<string>("Context")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("Env")
+                        .HasColumnType("int");
+
                     b.Property<string>("ExceptionType")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -56,21 +59,38 @@ namespace WLL_Tracker.Migrations
 
             modelBuilder.Entity("WLL_Tracker.Logs.LogEvent", b =>
                 {
-                    b.Property<string>("Id")
-                        .HasColumnType("nvarchar(450)");
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
 
-                    b.Property<string>("Author")
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Changes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Env")
+                        .HasColumnType("int");
+
+                    b.Property<string>("EventName")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
-                    b.PrimitiveCollection<string>("Changes")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<decimal>("MessageId")
+                        .HasColumnType("decimal(20,0)");
 
                     b.Property<DateTime>("Updated")
                         .HasColumnType("datetime2");
 
+                    b.Property<decimal>("UserId")
+                        .HasColumnType("decimal(20,0)");
+
+                    b.Property<string>("Username")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("Updated");
 
                     b.ToTable("LogEvents");
                 });

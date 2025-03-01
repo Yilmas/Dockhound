@@ -5,6 +5,9 @@ using System.Linq;
 using System.Text;
 using Newtonsoft.Json;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using WLL_Tracker.Models;
+using WLL_Tracker.Enums;
 
 namespace WLL_Tracker.Logs
 {
@@ -24,9 +27,11 @@ namespace WLL_Tracker.Logs
                         var logEvent = JsonConvert.DeserializeObject<LogEvent>(line);
                         if (logEvent != null &&
                             (string.IsNullOrWhiteSpace(query) || query.Equals("all", StringComparison.OrdinalIgnoreCase) ||
-                             logEvent.Id.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                             logEvent.Author.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                             logEvent.Changes.Exists(change => change.Contains(query, StringComparison.OrdinalIgnoreCase))))
+                             logEvent.EventName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                             logEvent.Username.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                             logEvent.MessageId.ToString().Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                             logEvent.UserId.ToString().Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                             (logEvent.Changes != null && logEvent.Changes.Contains(query, StringComparison.OrdinalIgnoreCase))))
                         {
                             events.Add(logEvent);
                         }
@@ -41,6 +46,23 @@ namespace WLL_Tracker.Logs
             return events;
         }
 
+        public static async Task<List<LogEvent>> LookupLogEventsAsync(WllTrackerContext dbContext, string query = null, DateTime? startDate = null, DateTime? endDate = null)
+        {
+            return await dbContext.Set<LogEvent>()
+                .AsQueryable()
+                .Where(logEvent =>
+                    (string.IsNullOrWhiteSpace(query) || query.Equals("all", StringComparison.OrdinalIgnoreCase) ||
+                     logEvent.EventName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                     logEvent.Username.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                     logEvent.MessageId.ToString().Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                     logEvent.UserId.ToString().Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                     (logEvent.Changes != null && logEvent.Changes.Contains(query, StringComparison.OrdinalIgnoreCase))) &&
+                    (!startDate.HasValue || logEvent.Updated >= startDate.Value) &&
+                    (!endDate.HasValue || logEvent.Updated <= endDate.Value))
+                .AsNoTracking()
+                .ToListAsync();
+        }
+
         public static List<LogEvent> ApplyDateRangeFilter(List<LogEvent> events, DateTime? startDate, DateTime? endDate)
         {
             return events.FindAll(log =>
@@ -51,17 +73,51 @@ namespace WLL_Tracker.Logs
         public static MemoryStream ConvertToMemoryStream(List<LogEvent> events)
         {
             var memoryStream = new MemoryStream();
-            var writer = new StreamWriter(memoryStream, Encoding.UTF8);
-
-            foreach (var logEvent in events)
+            using (var writer = new StreamWriter(memoryStream, Encoding.UTF8, leaveOpen: true))
             {
-                string json = JsonConvert.SerializeObject(logEvent);
-                writer.WriteLine(json);
+                foreach (var logEvent in events)
+                {
+                    string json = JsonConvert.SerializeObject(logEvent);
+                    writer.WriteLine(json);
+                }
+                writer.Flush();
             }
-
-            writer.Flush();
             memoryStream.Position = 0; // Reset stream position
             return memoryStream;
         }
+
+        public static async Task InsertLogEventsFromFileAsync(DbContext dbContext, string inputFilePath)
+        {
+            using (var reader = new StreamReader(inputFilePath))
+            {
+                string content = await reader.ReadToEndAsync();
+                var oldEvents = JsonConvert.DeserializeObject<List<OldLogEvent>>(content);
+
+                if (oldEvents != null && oldEvents.Any())
+                {
+                    var newEvents = oldEvents.Select(oldEvent => new LogEvent
+                    {
+                        EventName = oldEvent.Id.Split("|")[1],
+                        MessageId = ulong.Parse(oldEvent.Id.Split("|")[0]),
+                        Username = oldEvent.Author.Split("|")[0],
+                        UserId = ulong.Parse(oldEvent.Author.Split("|")[1]),
+                        Updated = oldEvent.Updated,
+                        Changes = oldEvent.Changes != null ? string.Join(", ", oldEvent.Changes) : null
+                    }).ToList();
+
+                    await dbContext.Set<LogEvent>().AddRangeAsync(newEvents);
+                    await dbContext.SaveChangesAsync();
+                }
+            }
+        }
     }
+
+    public class OldLogEvent
+    {
+        public string Id { get; set; }
+        public string Author { get; set; }
+        public DateTime Updated { get; set; }
+        public List<string> Changes { get; set; }
+    }
+
 }

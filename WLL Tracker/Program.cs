@@ -3,7 +3,6 @@ using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using System.Data.Entity;
 using System;
 using System.Globalization;
 using System.Reflection;

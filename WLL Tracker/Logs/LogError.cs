@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using WLL_Tracker.Enums;
 
 namespace WLL_Tracker.Logs
 {
@@ -26,16 +27,18 @@ namespace WLL_Tracker.Logs
         public string? Context { get; set; }
 
         [Required] public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+        [Required] public EnvironmentState Env { get; set; }
 
         public LogError() {}
 
-        public LogError(Exception ex, string? context = null)
+        public LogError(Exception ex, string? context = null, EnvironmentState env = EnvironmentState.Development)
         {
             Message = ex.Message;
             ExceptionType = ex.GetType().FullName ?? "UnknownException";
             StackTrace = ex.StackTrace;
             Context = context;
             Timestamp = DateTime.UtcNow;
+            Env = env;
         }
 
     }
