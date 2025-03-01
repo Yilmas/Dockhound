@@ -49,10 +49,10 @@ namespace WLL_Tracker.Logs
 
             if (string.IsNullOrEmpty(env))
             {
-                return EnvironmentState.Production; // Default to Production if not set
+                return EnvironmentState.Development; // Default to Development if not set
             }
 
-            return Enum.TryParse(env, out EnvironmentState result) ? result : EnvironmentState.Production;
+            return Enum.TryParse(env, out EnvironmentState result) ? result : EnvironmentState.Development;
         }
     }
 }
