@@ -33,7 +33,7 @@ namespace WLL_Tracker.Logs
             Username = username;
             UserId = userId;
             Updated = updated ?? DateTime.UtcNow;
-            Env = EnvironmentState.Development; //Set based on .env
+            Env = GetCurrentEnvironment();
             Changes = changes;
 
             Console.WriteLine($"[LOG] LogEvent, created by {Username}");
@@ -41,6 +41,18 @@ namespace WLL_Tracker.Logs
         public T? GetChanges<T>()
         {
             return Changes != null ? JsonConvert.DeserializeObject<T>(Changes) : default;
+        }
+
+        private EnvironmentState GetCurrentEnvironment()
+        {
+            string? env = Environment.GetEnvironmentVariable("WLL_ENVIRONMENT");
+
+            if (string.IsNullOrEmpty(env))
+            {
+                return EnvironmentState.Production; // Default to Production if not set
+            }
+
+            return Enum.TryParse(env, out EnvironmentState result) ? result : EnvironmentState.Production;
         }
     }
 }

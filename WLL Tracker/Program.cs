@@ -41,7 +41,7 @@ public class Program
         _services = new ServiceCollection()
             .AddSingleton(_configuration)
             .AddSingleton(_socketConfig)
-            .AddDbContext<WllTrackerContext>(options => options.UseSqlServer(_configuration["dbconn"])) 
+            .AddDbContext<WllTrackerContext>(options => options.UseSqlServer(_configuration["DBCONN"])) 
             .AddSingleton<DiscordSocketClient>()
             .AddSingleton(x => new InteractionService(x.GetRequiredService<DiscordSocketClient>(), _interactionServiceConfig))
             .AddSingleton<InteractionHandler>()
@@ -66,7 +66,7 @@ public class Program
 
         await _services.GetRequiredService<InteractionHandler>().InitializeAsync();
         
-        if (_configuration["token"] != null)
+        if (_configuration["TOKEN"] != null)
             Console.WriteLine("[LOG] Token Acquired!");
         else
         {
@@ -74,7 +74,7 @@ public class Program
             Environment.Exit(1);
         }
 
-        await client.LoginAsync(TokenType.Bot, _configuration["token"]);
+        await client.LoginAsync(TokenType.Bot, _configuration["TOKEN"]);
         await client.StartAsync();
 
         await Task.Delay(Timeout.Infinite);
