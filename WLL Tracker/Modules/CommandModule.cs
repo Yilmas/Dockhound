@@ -124,8 +124,7 @@ public class CommandModule : InteractionModuleBase<SocketInteractionContext>
             }
         }
 
-        [RequireUserPermission(GuildPermission.ViewAuditLog | GuildPermission.ManageMessages, Group = "a")]
-        [RequireUserPermission(ChannelPermission.ManageMessages, Group = "a")]
+        [RequireUserPermission(GuildPermission.ViewAuditLog | GuildPermission.ManageMessages)]
         [SlashCommand("log", "Display audit log for the bot.")]
         public async Task TrackerLog(string query = "all", DateTime? startDate = null, DateTime? endDate = null)
         {
