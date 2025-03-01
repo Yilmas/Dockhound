@@ -186,38 +186,6 @@ public class InteractionHandler
             await arg.RespondWithModalAsync(modal.Build());
         }
 
-        if (arg.Data.CustomId == "btn-board-edit")
-        {
-            if (arg.GuildId == null) 
-            {
-                await arg.RespondAsync("Must be used in a guild.", ephemeral: true);
-                return;
-            }
-
-            var user = _client.GetGuild((ulong)arg.GuildId).GetUser(arg.User.Id);
-            var channel = _client.GetGuild((ulong)arg.GuildId).Channels.Single(x => x.Id == arg.ChannelId);
-
-            // User must have ManageMessages or be a Veteran to edit the Board.
-            if (user.Roles.Any(x => x.Name != "Veteran"))
-            {
-                if (!user.GetPermissions(channel).ManageMessages)
-                {
-                    await arg.RespondAsync("Only Veterans and above may update the Job Board.", ephemeral: true);
-                    return;
-                }
-            }
-            
-            var msgBoardEmbed = arg.Message.Embeds.First().ToEmbedBuilder();
-            var boardValue = msgBoardEmbed.Fields.Single(x => x.Name == "Job Board").Value;
-
-            var modalBoard = new ModalBuilder()
-                .WithTitle($"Update job board")
-                .WithCustomId("update-board-modal")
-                .AddTextInput("Count", "update-board-edit", TextInputStyle.Paragraph, value: boardValue.ToString(), maxLength: 255, required: false);
-
-            await arg.RespondWithModalAsync(modalBoard.Build());
-        }
-
         if (arg.Data.CustomId == "btn-whiteboard-update")
         {
             if (arg.GuildId == null)
@@ -316,41 +284,6 @@ public class InteractionHandler
                 }
             }
             
-        }
-
-        // Board
-        if (arg.Data.CustomId == "update-board-modal")
-        {
-            var msg = await arg.Channel.GetMessageAsync(arg.Message.Id);
-
-            var msgEmbed = msg.Embeds.First().ToEmbedBuilder();
-            msgEmbed.WithDescription("Last Updated by " + arg.User.Mention + " <t:" + seconds + ":R>");
-            msgEmbed.Fields.Single(x => x.Name == "Job Board").Value = (comp.Value == string.Empty ? "Waiting for Jobs ..." : comp.Value);
-
-            await arg.UpdateAsync(x =>
-            {
-                x.Embed = msgEmbed.Build();
-            });
-            
-            var location = arg.Message.Embeds.First().Title;
-
-            try
-            {
-                var log = new LogEvent(
-                    eventName: "Updated Job Board",
-                    messageId: arg.Message.Id,
-                    username: arg.User.Username,
-                    userId: arg.User.Id,
-                    changes: $"Updated the job board for {location}"
-                );
-
-                _dbContext.LogEvents.Add(log);
-                await _dbContext.SaveChangesAsync();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
-            }
         }
 
         // Whiteboard

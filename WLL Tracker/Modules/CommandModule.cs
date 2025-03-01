@@ -55,16 +55,10 @@ public class CommandModule : InteractionModuleBase<SocketInteractionContext>
                     .AddField("Blue", 0, true)
                     .AddField("DarkBlue", 0, true)
                     .AddField("White", 0, true)
-                    .WithFields(
-                        new EmbedFieldBuilder()
-                            .WithName("Job Board")
-                            .WithValue("Waiting for Jobs ...")
-                        )
                     .WithFooter("Brought to you by WLL Cannonsmoke");
 
                 var builder = new ComponentBuilder()
-                    .WithButton(label: "Edit Container Count", "btn-container-count", style: ButtonStyle.Secondary)
-                    .WithButton(label: "Edit Job Board", "btn-board-edit", style: ButtonStyle.Secondary);
+                    .WithButton(label: "Edit Container Count", "btn-container-count", style: ButtonStyle.Secondary);
 
                 await RespondAsync(embed: embed.Build(), components: builder.Build());
                 
