@@ -28,13 +28,13 @@ namespace WLL_Tracker.Models
         {
             try
             {
-                string json = File.ReadAllText("wll-roles-config_test.json");
+                string json = File.ReadAllText("roles.json");
 
                 return JsonConvert.DeserializeObject<List<DiscordRoles>>(json) ?? new List<DiscordRoles>();
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error loading wll-roles-config.json: {ex.Message}");
+                Console.WriteLine($"Error loading roles.json: {ex.Message}");
                 return new List<DiscordRoles>();
             }
         }
