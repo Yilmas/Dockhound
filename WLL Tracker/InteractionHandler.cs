@@ -247,7 +247,8 @@ public class InteractionHandler
                 return;
             }
 
-            ulong notificationChannelId = 1346102062890356756;
+            ulong.TryParse(_configuration["CHANNEL_VERIFY_NOTIFICATION"], out ulong notificationChannelId);
+            
             var notificationChannel = await guild.GetTextChannelAsync(notificationChannelId);
 
             if (arg.Data.CustomId == "approve_verification")
@@ -304,7 +305,25 @@ public class InteractionHandler
 
                 if (notificationChannel != null)
                 {
-                    await notificationChannel.SendMessageAsync($"{user.Mention}, your verification has been **approved**! 🎉 You now have access to faction specific channels.");
+                    //await notificationChannel.SendMessageAsync($"{user.Mention}, your verification has been **approved**! 🎉 You now have access to faction specific channels.");
+                }
+
+                try
+                {
+                    ulong factionSecureComms = 0;
+
+                    if ((string)factionField.Value == "Colonial")
+                        ulong.TryParse(_configuration["CHANNEL_FACTION_COLONIAL_SECURE"], out factionSecureComms);
+                    if ((string)factionField.Value == "Warden")
+                        ulong.TryParse(_configuration["CHANNEL_FACTION_WARDEN_SECURE"], out factionSecureComms);
+                    
+                    var factionSecureChannel = await guild.GetTextChannelAsync(factionSecureComms);
+
+                    await user.SendMessageAsync($"✅ Your WLL verification has been approved! 🎉 You now have access to faction-specific channels such as {factionSecureChannel.Mention}.");
+                }
+                catch
+                {
+                    Console.WriteLine($"[ERROR] Failed to send a DM to {user.Username}. They may have DMs disabled.");
                 }
 
                 try
@@ -338,7 +357,16 @@ public class InteractionHandler
 
                 if (notificationChannel != null)
                 {
-                    await notificationChannel.SendMessageAsync($"{user.Mention}, your verification has been **denied**. ❌");
+                    //await notificationChannel.SendMessageAsync($"{user.Mention}, your verification has been **denied**. ❌");
+
+                    try
+                    {
+                        await user.SendMessageAsync($"❌ Your WLL verification has been denied!");
+                    }
+                    catch
+                    {
+                        Console.WriteLine($"[ERROR] Failed to send a DM to {user.Username}. They may have DMs disabled.");
+                    }
                 }
 
                 await arg.FollowupAsync($"Verification denied by {arg.User.Username}!", ephemeral: true);

@@ -15,6 +15,7 @@ using System.Collections;
 using System.Threading.Channels;
 using Microsoft.VisualBasic;
 using WLL_Tracker.Models;
+using Microsoft.Extensions.Configuration;
 
 namespace WLL_Tracker.Modules;
 
@@ -35,11 +36,13 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
     {
         private readonly WllTrackerContext _dbContext;
         private readonly HttpClient _httpClient;
+        private readonly IConfiguration _configuration;
 
-        public VerifySetup(WllTrackerContext dbContext, HttpClient httpClient)
+        public VerifySetup(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config)
         {
             _dbContext = dbContext;
             _httpClient = httpClient;
+            _configuration = config;
         }
 
         [SlashCommand("me", "Basic Verification")]
@@ -47,8 +50,7 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
         {
             long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 
-            ulong reviewChannelId = 1346102016086245487;
-            ulong notificationChannelId = 1346102062890356756;
+            ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out ulong reviewChannelId);
 
             var reviewChannel = Context.Guild.GetTextChannel(reviewChannelId);
 
