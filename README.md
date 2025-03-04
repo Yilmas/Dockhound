@@ -2,6 +2,7 @@
 A bot for the Foxhole regiment Winter Legion. 
 
 [![.NET](https://github.com/Yilmas/wll-tracker/actions/workflows/dotnet.yml/badge.svg)](https://github.com/Yilmas/wll-tracker/actions/workflows/dotnet.yml)
+[![Docker](https://github.com/Yilmas/wll-tracker/actions/workflows/release.yaml/badge.svg)](https://github.com/Yilmas/wll-tracker/actions/workflows/release.yaml)
 
 ## Current Features:
 - Yard Tracker
