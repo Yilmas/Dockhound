@@ -41,12 +41,15 @@ public class Program
         _services = new ServiceCollection()
             .AddSingleton(_configuration)
             .AddSingleton(_socketConfig)
+            .AddSingleton<HttpClient>()
             .AddDbContext<WllTrackerContext>(options => options.UseSqlServer(_configuration["DBCONN"])) 
             .AddSingleton<DiscordSocketClient>()
             .AddSingleton(x => new InteractionService(x.GetRequiredService<DiscordSocketClient>(), _interactionServiceConfig))
             .AddSingleton<InteractionHandler>()
-            .AddSingleton<CommandModule>()
-            .AddSingleton<CommandModule.GroupSetup>()
+            .AddSingleton<TrackerModule>()
+            .AddSingleton<TrackerModule.TrackerSetup>()
+            .AddSingleton<VerificationModule>()
+            .AddSingleton<VerificationModule.VerifySetup>()
             .BuildServiceProvider();
 
         var client = _services.GetRequiredService<DiscordSocketClient>();

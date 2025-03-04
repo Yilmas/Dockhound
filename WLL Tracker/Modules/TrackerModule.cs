@@ -17,24 +17,24 @@ using WLL_Tracker.Models;
 
 namespace WLL_Tracker.Modules;
 
-public class CommandModule : InteractionModuleBase<SocketInteractionContext>
+public class TrackerModule : InteractionModuleBase<SocketInteractionContext>
 {
     public InteractionService Commands { get; set; }
 
     private InteractionHandler _handler;
 
-    public CommandModule(InteractionHandler handler)
+    public TrackerModule(InteractionHandler handler)
     {
         _handler = handler;
     }
 
     [CommandContextType(InteractionContextType.Guild)]
     [Group("tracker", "Root command of Dockhound")]
-    public class GroupSetup : InteractionModuleBase<SocketInteractionContext>
+    public class TrackerSetup : InteractionModuleBase<SocketInteractionContext>
     {
         private readonly WllTrackerContext _dbContext;
 
-        public GroupSetup(WllTrackerContext dbContext)
+        public TrackerSetup(WllTrackerContext dbContext)
         {
             _dbContext = dbContext;
         }

@@ -4,6 +4,7 @@ using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 using Microsoft.VisualBasic;
 using System;
+using System.ComponentModel;
 using System.Diagnostics.Metrics;
 using System.Reflection;
 using System.Text.RegularExpressions;
@@ -11,6 +12,7 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Xml.XPath;
+using WLL_Tracker.Enums;
 using WLL_Tracker.Logs;
 using WLL_Tracker.Models;
 
@@ -206,6 +208,159 @@ public class InteractionHandler
                 .AddTextInput("Message", "update-whiteboard-edit", TextInputStyle.Paragraph, value: boardValue, maxLength: 2048, required: true);
 
             await arg.RespondWithModalAsync(modalBoard.Build());
+        }
+
+        if (arg.Data.CustomId is "approve_verification" or "deny_verification")
+        {
+            var embed = arg.Message.Embeds.FirstOrDefault()?.ToEmbedBuilder();
+            if (embed == null)
+            {
+                await arg.RespondAsync("Error: No embed found in this message.", ephemeral: true);
+                return;
+            }
+
+            var userIdField = embed.Fields.FirstOrDefault(f => f.Name == "User ID");
+            if (userIdField == null || !ulong.TryParse((string?)userIdField.Value, out ulong userId))
+            {
+                await arg.RespondAsync("Error: Cold not extract user ID.", ephemeral: true);
+                return;
+            }
+
+            var factionField = embed.Fields.FirstOrDefault(f => f.Name == "Faction");
+            if (factionField == null)
+            {
+                await arg.RespondAsync("Error: Cold not extract selected faction.", ephemeral: true);
+                return;
+            }
+
+            var guild = (arg.Channel as IGuildChannel)?.Guild;
+            if (guild == null)
+            {
+                await arg.RespondAsync("Error: Could not extract guild.", ephemeral: true);
+                return;
+            }
+
+            var user = await guild.GetUserAsync(userId);
+            if (user == null)
+            {
+                await arg.RespondAsync("Error: Could not find user.", ephemeral: true);
+                return;
+            }
+
+            ulong notificationChannelId = 1346102062890356756;
+            var notificationChannel = await guild.GetTextChannelAsync(notificationChannelId);
+
+            if (arg.Data.CustomId == "approve_verification")
+            {
+                await arg.DeferAsync(ephemeral: true);
+
+                var rolesToAssign = new List<ulong>();
+
+                var userRoles = user.RoleIds.ToHashSet();
+                
+                foreach (var role in DiscordRolesList.GetRoles())
+                {
+                    ulong roleToAssign = 0;
+
+                    if (role.Name == "Faction")
+                    {
+                        if ((string)factionField.Value == "Colonial")
+                            roleToAssign = role.Colonial;
+                        if ((string)factionField.Value == "Warden")
+                            roleToAssign = role.Warden;
+                    }
+                    else
+                    {
+                        ulong factionRoleId = factionField.Value.ToString() switch
+                        {
+                            "Colonial" => role.Colonial,
+                            "Warden" => role.Warden,
+                            _ => role.Generic
+                        };
+
+                        bool hasGenericRole = userRoles.Contains(role.Generic);
+
+                        roleToAssign = hasGenericRole ? factionRoleId : 0;
+                    }
+
+                    if (roleToAssign != 0)
+                    {
+                        rolesToAssign.Add(roleToAssign);
+                    }
+                }
+
+                if (rolesToAssign.Count > 0)
+                {
+                    await user.AddRolesAsync(rolesToAssign);
+                }
+
+                embed.WithFooter($"Approved ✅ by {arg.User.Username}");
+
+                await arg.ModifyOriginalResponseAsync(msg =>
+                {
+                    msg.Embeds = new Embed[] { embed.Build() };
+                    msg.Components = new ComponentBuilder().Build(); // Remove buttons
+                });
+
+                if (notificationChannel != null)
+                {
+                    await notificationChannel.SendMessageAsync($"{user.Mention}, your verification has been **approved**! 🎉 You now have access to faction specific channels.");
+                }
+
+                try
+                {
+                    var log = new LogEvent(
+                        eventName: "Verification Handler",
+                        messageId: arg.Message.Id,
+                        username: arg.User.Username,
+                        userId: arg.User.Id,
+                        changes: $"{arg.User.Username} approved access for {user.Username}"
+                    );
+
+                    _dbContext.LogEvents.Add(log);
+                    await _dbContext.SaveChangesAsync();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
+                }
+            }
+            else if (arg.Data.CustomId == "deny_verification")
+            {
+                embed.WithFooter($"Denied ❌ by {arg.User.Username}");
+                embed.WithColor(Color.Red);
+
+                await arg.UpdateAsync(msg =>
+                {
+                    msg.Embeds = new Embed[] { embed.Build() };
+                    msg.Components = new ComponentBuilder().Build(); // Remove buttons
+                });
+
+                if (notificationChannel != null)
+                {
+                    await notificationChannel.SendMessageAsync($"{user.Mention}, your verification has been **denied**. ❌");
+                }
+
+                await arg.FollowupAsync($"Verification denied by {arg.User.Username}!", ephemeral: true);
+
+                try
+                {
+                    var log = new LogEvent(
+                        eventName: "Verification Handler",
+                        messageId: arg.Message.Id,
+                        username: arg.User.Username,
+                        userId: arg.User.Id,
+                        changes: $"{arg.User.Username} denied access for {user.Username}"
+                    );
+
+                    _dbContext.LogEvents.Add(log);
+                    await _dbContext.SaveChangesAsync();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
+                }
+            }
         }
     }
 
