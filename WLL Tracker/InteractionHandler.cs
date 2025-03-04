@@ -58,6 +58,8 @@ public class InteractionHandler
 
     private async Task ReadyAsync()
     {
+        await _client.SetActivityAsync(new Game("user requests", ActivityType.Listening));
+
         await DeleteAllCommandsAsync();
 
         foreach (var item in _client.Guilds)
