@@ -257,40 +257,7 @@ public class InteractionHandler
             {
                 await arg.DeferAsync(ephemeral: true);
 
-                var rolesToAssign = new List<ulong>();
-
-                var userRoles = user.RoleIds.ToHashSet();
-                
-                foreach (var role in DiscordRolesList.GetRoles())
-                {
-                    ulong roleToAssign = 0;
-
-                    if (role.Name == "Faction")
-                    {
-                        if ((string)factionField.Value == "Colonial")
-                            roleToAssign = role.Colonial;
-                        if ((string)factionField.Value == "Warden")
-                            roleToAssign = role.Warden;
-                    }
-                    else
-                    {
-                        ulong factionRoleId = factionField.Value.ToString() switch
-                        {
-                            "Colonial" => role.Colonial,
-                            "Warden" => role.Warden,
-                            _ => role.Generic
-                        };
-
-                        bool hasGenericRole = userRoles.Contains(role.Generic);
-
-                        roleToAssign = hasGenericRole ? factionRoleId : 0;
-                    }
-
-                    if (roleToAssign != 0)
-                    {
-                        rolesToAssign.Add(roleToAssign);
-                    }
-                }
+                var rolesToAssign = DiscordRolesList.GetDeltaRoleIdList(user, (string)factionField.Value);
 
                 if (rolesToAssign.Count > 0)
                 {
@@ -371,7 +338,7 @@ public class InteractionHandler
                     }
                 }
 
-                await arg.FollowupAsync($"Verification denied by {arg.User.Username}!", ephemeral: true);
+                //await arg.FollowupAsync($"Verification denied by {arg.User.Username}!", ephemeral: true);
 
                 try
                 {

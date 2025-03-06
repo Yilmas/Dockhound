@@ -69,6 +69,7 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
                 .WithDescription($"A verification has been submitted by {Context.User.Mention}")
                 .AddField("Faction", faction, true)
                 .AddField("User ID", Context.User.Id.ToString(), true)
+                .AddField("Roles to be granted", DiscordRolesList.GetDeltaRoleMentions(Context.Guild.GetUser(Context.User.Id), faction.ToString()), false)
                 .WithColor(faction == Faction.Colonial ? Color.DarkGreen : Color.DarkBlue)
                 .WithCurrentTimestamp()
                 .WithFooter("Awaiting Approval")
@@ -101,6 +102,27 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
             {
                 Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
             }
+        }
+
+        [RequireUserPermission(GuildPermission.ManageMessages)]
+        [SlashCommand("info", "Provides information on the verification process.")]
+        public async Task VerifyInfo()
+        {
+            string imageUrl = _configuration["VERIFY_IMAGEURL"];
+
+            var embed = new EmbedBuilder()
+                .WithTitle("Looking to Verify?")
+                .WithDescription("Follow the steps below to get yourself verified.")
+                .AddField("Steps to Verify", "1. Enter `/verify me`\n2. Upload your `F1 Screenshot`\n3. Select `Colonial` or `Warden`", false)
+                .AddField("**Required Screenshot**", "F1 Screenshot **ONLY**\nScreenshots from **Home Region** will be **rejected**.", false)
+                .AddField("\u200B​", "\u200B", false)
+                .AddField("**How long will it take?**", "If you have given us the correct information, one of the officers will handle your request asap.", false)
+                .WithImageUrl(imageUrl)
+                .WithColor(Color.Gold)
+                .WithFooter("Brought to you by WLL Cannonsmoke")
+                .Build();
+
+            await RespondAsync(embed: embed);
         }
     }
 }
