@@ -114,7 +114,7 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
                 .WithTitle("Looking to Verify?")
                 .WithDescription("Follow the steps below to get yourself verified.")
                 .AddField("Steps to Verify", "1. Enter `/verify me`\n2. Upload your `F1 Screenshot`\n3. Select `Colonial` or `Warden`", false)
-                .AddField("**Required Screenshot**", "F1 Screenshot **ONLY**\nScreenshots from **Home Region** will be **rejected**.", false)
+                .AddField("**Required Screenshot**", "Map Screenshot **ONLY**\nScreenshots from **Home Region** OR **Secure Map** will be **rejected**.", false)
                 .AddField("\u200B​", "\u200B", false)
                 .AddField("**How long will it take?**", "If you have given us the correct information, one of the officers will handle your request asap.", false)
                 .WithImageUrl(imageUrl)
