@@ -4,6 +4,7 @@ using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using System.Threading;
@@ -53,12 +54,16 @@ public class Program
             .AddSingleton<TrackerModule.TrackerSetup>()
             .AddSingleton<VerificationModule>()
             .AddSingleton<VerificationModule.VerifySetup>()
-            .AddSingleton<TelemetryConfiguration>() // Ensure configuration instance is available
-            .AddApplicationInsightsTelemetry(options =>
+            .AddSingleton<TelemetryConfiguration>(provider =>
             {
-                options.ConnectionString = _configuration["APPINSIGHTS_CONN"];
-                options.EnableAdaptiveSampling = false;
-                options.EnablePerformanceCounterCollectionModule = true;
+                var config = TelemetryConfiguration.CreateDefault();
+                config.ConnectionString = _configuration["APPINSIGHTS_CONN"];
+                return config;
+            })
+            .AddSingleton<TelemetryClient>(options =>
+            {
+                var telemetryConfig = options.GetRequiredService<TelemetryConfiguration>();
+                return new TelemetryClient(telemetryConfig);
             })
             .BuildServiceProvider();
 
@@ -90,8 +95,28 @@ public class Program
         await client.LoginAsync(TokenType.Bot, _configuration["TOKEN"]);
         await client.StartAsync();
 
+        _ = TrackPerformanceMetrics();
+
         await Task.Delay(Timeout.Infinite);
 
+    }
+
+    private static async Task TrackPerformanceMetrics()
+    {
+        while (true)
+        {
+            var telemetryClient = _services.GetRequiredService<TelemetryClient>();
+
+            var process = Process.GetCurrentProcess();
+
+            var memoryUsage = process.WorkingSet64 / (1024 * 1024);
+            var cpuUsage = process.TotalProcessorTime.TotalMilliseconds;
+
+            telemetryClient.Track;.GetMetric("MemoryUsageMB").TrackValue(memoryUsage);
+            telemetryClient.GetMetric("CPUUsageMilliseconds").TrackValue(cpuUsage);
+
+            await Task.Delay(TimeSpan.FromSeconds(30));
+        }
     }
 
     private static Task LogAsync(LogMessage log)

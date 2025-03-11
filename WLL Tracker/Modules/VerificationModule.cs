@@ -66,7 +66,7 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
 
             var embed = new EmbedBuilder()
                 .WithTitle("New Verification Submission")
-                .WithDescription($"A verification has been submitted by {Context.User.Mention}")
+                .WithDescription($"A verification has been submitted by {Context.User.Username} - ({Context.User.Mention})")
                 .AddField("Faction", faction, true)
                 .AddField("User ID", Context.User.Id.ToString(), true)
                 .AddField("Roles to be granted", DiscordRolesList.GetDeltaRoleMentions(Context.Guild.GetUser(Context.User.Id), faction.ToString()), false)
