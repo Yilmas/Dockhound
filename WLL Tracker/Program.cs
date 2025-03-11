@@ -8,10 +8,13 @@ using System.Globalization;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.EntityFrameworkCore;
 using WLL_Tracker.Logs;
 using WLL_Tracker.Models;
 using WLL_Tracker.Modules;
+using Microsoft.ApplicationInsights.Extensibility;
 
 namespace WLL_Tracker;
 
@@ -50,6 +53,13 @@ public class Program
             .AddSingleton<TrackerModule.TrackerSetup>()
             .AddSingleton<VerificationModule>()
             .AddSingleton<VerificationModule.VerifySetup>()
+            .AddSingleton<TelemetryConfiguration>() // Ensure configuration instance is available
+            .AddApplicationInsightsTelemetry(options =>
+            {
+                options.ConnectionString = _configuration["APPINSIGHTS_CONN"];
+                options.EnableAdaptiveSampling = false;
+                options.EnablePerformanceCounterCollectionModule = true;
+            })
             .BuildServiceProvider();
 
         var client = _services.GetRequiredService<DiscordSocketClient>();
@@ -86,6 +96,26 @@ public class Program
 
     private static Task LogAsync(LogMessage log)
     {
+        var telemetryClient = _services.GetRequiredService<TelemetryClient>();
+
+        if (log.Exception is not null)
+        {
+            telemetryClient.TrackException(log.Exception);
+        }
+
+        telemetryClient.TrackTrace(log.Message, log.Severity switch
+        {
+            LogSeverity.Critical => SeverityLevel.Critical,
+            LogSeverity.Error => SeverityLevel.Error,
+            LogSeverity.Warning => SeverityLevel.Warning,
+            LogSeverity.Info => SeverityLevel.Information,
+            LogSeverity.Verbose => SeverityLevel.Verbose,
+            LogSeverity.Debug => SeverityLevel.Verbose,
+            _ => SeverityLevel.Information
+        });
+
+        telemetryClient.TrackTrace($"[{log.Severity}] {log.Source}: {log.Message}");
+
         Console.WriteLine(log.ToString());
         return Task.CompletedTask;
     }
