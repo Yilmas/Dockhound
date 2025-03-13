@@ -13,10 +13,12 @@ using WLL_Tracker.Logs;
 using System.IO;
 using System.Collections;
 using System.Threading.Channels;
+using Discord.WebSocket;
 using Microsoft.VisualBasic;
 using WLL_Tracker.Models;
 using Microsoft.Extensions.Configuration;
 using WLL_Tracker.Modals;
+using static Microsoft.ApplicationInsights.MetricDimensionNames.TelemetryContext;
 
 namespace WLL_Tracker.Modules;
 
@@ -126,6 +128,97 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
                 .Build();
 
             await RespondAsync(embed: embed);
+        }
+
+        [UserCommand("Assign Applicant")]
+        public async Task AssignApplicantAsync(IUser targetUser)
+        {
+            if (Context.Guild == null)
+            {
+                await RespondAsync("This command must be used in a server.", ephemeral: true);
+                return;
+            }
+
+            var guildUser = Context.Guild.GetUser(targetUser.Id);
+            if (guildUser == null)
+            {
+                await RespondAsync("User not found in the guild.", ephemeral: true);
+                return;
+            }
+
+            string faction = string.Empty;
+            var factionRole = DiscordRolesList.GetRoles().First(p => p.Name == "Faction");
+            foreach (var r in guildUser.Roles)
+            {
+                if (r.Id == factionRole.Colonial)
+                {
+                    faction = "Colonial";
+                }
+
+                if (r.Id == factionRole.Warden)
+                {
+                    faction = "Warden";
+                }
+            }
+
+            var rolesToAssign = new List<ulong>();
+            var applicantFactionRole = DiscordRolesList.GetRoles().First(p => p.Name == "Applicant");
+            rolesToAssign.Add(applicantFactionRole.Generic);
+
+            if (faction == "Colonial")
+            {
+                rolesToAssign.Add(applicantFactionRole.Colonial);
+            }
+
+            if (faction == "Warden")
+            {
+                rolesToAssign.Add(applicantFactionRole.Warden);
+            }
+
+            if (rolesToAssign.Count > 0)
+            {
+                await guildUser.AddRolesAsync(rolesToAssign);
+            }
+
+            // Create a thread in the forum
+            if (!ulong.TryParse(_configuration["CHANNEL_APPLICANT_FORUM"], out ulong forumChannelId))
+            {
+                await RespondAsync("Configuration error: Forum channel ID is invalid or missing.", ephemeral: true);
+                return;
+            }
+
+            var forumChannel = Context.Guild.GetChannel(forumChannelId) as SocketForumChannel;
+            if (forumChannel == null)
+            {
+                await RespondAsync("Forum channel not found or incorrect channel type.", ephemeral: true);
+                return;
+            }
+
+            var embedBuilder = new EmbedBuilder()
+                .WithTitle("Applicant Promotion")
+                .WithDescription($"{targetUser.Mention} has been assigned the **Applicant** role. Use this thread to discuss their applicant promotion.")
+                .WithThumbnailUrl(targetUser.GetAvatarUrl())
+                .WithColor(Color.Green);
+
+            // Add "Applicant By" field only if Context.User is different from targetUser
+            if (Context.User.Id != targetUser.Id)
+            {
+                embedBuilder.AddField("Applicant By", Context.User.Mention, false);
+            }
+
+            var embed = embedBuilder.Build();
+
+            ulong.TryParse(_configuration["CHANNEL_APPLICANT_FORUM_PENDINGTAG"], out ulong tagId);
+
+            var tag = forumChannel.Tags.FirstOrDefault(p => p.Id == tagId);
+
+            var thread = await forumChannel.CreatePostAsync(
+                title: $"{targetUser.GlobalName}",
+                tags: [tag],
+                embed: embed
+            );
+
+            await RespondAsync($"✅ Assigned **Applicant** to {targetUser.Mention}. Created applicant thread: {thread.Mention}.", ephemeral: true);
         }
     }
 }
