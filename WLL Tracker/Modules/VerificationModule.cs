@@ -16,6 +16,7 @@ using System.Threading.Channels;
 using Microsoft.VisualBasic;
 using WLL_Tracker.Models;
 using Microsoft.Extensions.Configuration;
+using WLL_Tracker.Modals;
 
 namespace WLL_Tracker.Modules;
 
@@ -48,6 +49,8 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
         [SlashCommand("me", "Basic Verification")]
         public async Task VerifyMe(IAttachment file, Faction faction)
         {
+            await DeferAsync(ephemeral: true);
+
             long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 
             ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out ulong reviewChannelId);
@@ -56,7 +59,7 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
 
             if (reviewChannel == null)
             {
-                await RespondAsync("Verification channel not found. Please contact an admin.", ephemeral: true);
+                await FollowupAsync("Verification channel not found. Please contact an admin.", ephemeral: true);
                 return;
             }
 
@@ -81,7 +84,7 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
                 .Build();
 
             await reviewChannel.SendFileAsync(stream, file.Filename, embed: embed, components: component);
-            await RespondAsync("Verification submitted. Please wait for approval.", ephemeral: true);
+            await FollowupAsync("Verification submitted. Please wait for approval.", ephemeral: true);
 
             try
             {

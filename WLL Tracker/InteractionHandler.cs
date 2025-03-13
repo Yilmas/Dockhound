@@ -2,6 +2,7 @@
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualBasic;
 using System;
 using System.ComponentModel;
@@ -14,6 +15,7 @@ using System.Windows.Input;
 using System.Xml.XPath;
 using WLL_Tracker.Enums;
 using WLL_Tracker.Logs;
+using WLL_Tracker.Modals;
 using WLL_Tracker.Models;
 
 namespace WLL_Tracker;
@@ -315,48 +317,10 @@ public class InteractionHandler
             }
             else if (arg.Data.CustomId == "deny_verification")
             {
-                embed.WithFooter($"Denied ❌ by {arg.User.Username}");
-                embed.WithColor(Color.Red);
+                var modal = new ModalBuilder("Denial Reason", $"verify_deny_reason:{userId}:{arg.Message.Id}")
+                    .AddTextInput("Why are you denying this?", $"deny_reason_text", TextInputStyle.Paragraph, maxLength: 500, placeholder: "Enter the reason for denial...");
 
-                await arg.UpdateAsync(msg =>
-                {
-                    msg.Embeds = new Embed[] { embed.Build() };
-                    msg.Components = new ComponentBuilder().Build(); // Remove buttons
-                });
-
-                if (notificationChannel != null)
-                {
-                    //await notificationChannel.SendMessageAsync($"{user.Mention}, your verification has been **denied**. ❌");
-
-                    try
-                    {
-                        await user.SendMessageAsync($"❌ Your WLL verification has been denied!");
-                    }
-                    catch
-                    {
-                        Console.WriteLine($"[ERROR] Failed to send a DM to {user.Username}. They may have DMs disabled.");
-                    }
-                }
-
-                //await arg.FollowupAsync($"Verification denied by {arg.User.Username}!", ephemeral: true);
-
-                try
-                {
-                    var log = new LogEvent(
-                        eventName: "Verification Handler",
-                        messageId: arg.Message.Id,
-                        username: arg.User.Username,
-                        userId: arg.User.Id,
-                        changes: $"{arg.User.Username} denied access for {user.Username}"
-                    );
-
-                    _dbContext.LogEvents.Add(log);
-                    await _dbContext.SaveChangesAsync();
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
-                }
+                await arg.RespondWithModalAsync(modal.Build());
             }
         }
     }
@@ -364,7 +328,6 @@ public class InteractionHandler
     public async Task ModalSubmitted(SocketModal arg)
     {
         long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
-        var comp = arg.Data.Components.First();
 
         // Count
         if (arg.Data.CustomId == "update-count-modal")
@@ -441,6 +404,7 @@ public class InteractionHandler
         // Whiteboard
         if (arg.Data.CustomId == "update-whiteboard-modal")
         {
+            var comp = arg.Data.Components.First();
             var msg = await arg.Channel.GetMessageAsync(arg.Message.Id);
 
             var msgEmbed = msg.Embeds.First().ToEmbedBuilder();
@@ -461,6 +425,94 @@ public class InteractionHandler
                     username: arg.User.Username,
                     userId: arg.User.Id,
                     changes: $"Updated the whiteboard for {location}"
+                );
+
+                _dbContext.LogEvents.Add(log);
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
+            }
+        }
+
+        // Handle the verification denial modal
+        if (arg.Data.CustomId.StartsWith("verify_deny_reason"))
+        {
+            var parts = arg.Data.CustomId.Split(':');
+            if (parts.Length < 3 || !ulong.TryParse(parts[1], out ulong userId) || !ulong.TryParse(parts[2], out ulong messageId))
+            {
+                await arg.RespondAsync("Error: Could not extract user or message ID.", ephemeral: true);
+                return;
+            }
+            
+            var guild = (arg.Channel as IGuildChannel)?.Guild;
+            if (guild == null)
+            {
+                await arg.RespondAsync("Error: Could not retrieve the guild.", ephemeral: true);
+                return;
+            }
+
+            var user = await guild.GetUserAsync(userId);
+            if (user == null)
+            {
+                await arg.RespondAsync("Error: Could not find the user.", ephemeral: true);
+                return;
+            }
+
+            var reason = arg.Data.Components.First().Value;
+
+            ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out ulong reviewChannelId);
+            var verificationChannel = await guild.GetTextChannelAsync(reviewChannelId);
+            if (verificationChannel == null)
+            {
+                await arg.RespondAsync("Error: Could not find the verification channel.", ephemeral: true);
+                return;
+            }
+
+            var message = await verificationChannel.GetMessageAsync(messageId) as IUserMessage;
+            if (message == null)
+            {
+                await arg.RespondAsync("Error: Could not retrieve the original verification message.", ephemeral: true);
+                return;
+            }
+
+            // Update the embed with the denial reason
+            var embed = message.Embeds.FirstOrDefault()?.ToEmbedBuilder();
+            if (embed != null)
+            {
+                embed.AddField("Denial Reason", reason, true);
+                embed.WithFooter($"Denied ❌ by {arg.User.Username}");
+                embed.WithColor(Color.Red);
+            }
+
+            await message.ModifyAsync(msg =>
+            {
+                msg.Embeds = new Embed[] { embed.Build() };
+                msg.Components = new ComponentBuilder().Build(); // Remove buttons
+            });
+
+            // Notify user via DM
+            try
+            {
+                await user.SendMessageAsync($"❌ Your verification has been denied.\n**Reason:** {reason}");
+            }
+            catch
+            {
+                await arg.RespondAsync($"Could not DM {user.Username}. They may have DMs disabled.", ephemeral: true);
+            }
+
+            await arg.RespondAsync("Denial reason submitted and user has been notified.", ephemeral: true);
+
+            // Log the denial
+            try
+            {
+                var log = new LogEvent(
+                    eventName: "Verification Denial",
+                    messageId: messageId,
+                    username: arg.User.Username,
+                    userId: userId,
+                    changes: $"{arg.User.Username} denied access for {user.Username} with reason: {reason}"
                 );
 
                 _dbContext.LogEvents.Add(log);
