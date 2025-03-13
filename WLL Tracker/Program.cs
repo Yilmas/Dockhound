@@ -41,8 +41,8 @@ public class Program
         _configuration = new ConfigurationBuilder()
             .AddEnvironmentVariables(prefix: "WLL_")
             .Build();
-
-        _services = new ServiceCollection()
+        
+        var services = new ServiceCollection()
             .AddSingleton(_configuration)
             .AddSingleton(_socketConfig)
             .AddSingleton<HttpClient>()
@@ -53,19 +53,32 @@ public class Program
             .AddSingleton<TrackerModule>()
             .AddSingleton<TrackerModule.TrackerSetup>()
             .AddSingleton<VerificationModule>()
-            .AddSingleton<VerificationModule.VerifySetup>()
-            .AddSingleton<TelemetryConfiguration>(provider =>
+            .AddSingleton<VerificationModule.VerifySetup>();
+
+        bool enableTelemetry = !string.IsNullOrEmpty(_configuration["APPINSIGHTS_CONN"]);
+
+        if (enableTelemetry)
+        {
+            services.AddSingleton<TelemetryConfiguration>(provider =>
             {
                 var config = TelemetryConfiguration.CreateDefault();
                 config.ConnectionString = _configuration["APPINSIGHTS_CONN"];
                 return config;
-            })
-            .AddSingleton<TelemetryClient>(options =>
+            });
+
+            services.AddSingleton<TelemetryClient>(provider =>
             {
-                var telemetryConfig = options.GetRequiredService<TelemetryConfiguration>();
+                var telemetryConfig = provider.GetRequiredService<TelemetryConfiguration>();
                 return new TelemetryClient(telemetryConfig);
-            })
-            .BuildServiceProvider();
+            });
+        }
+        else
+        {
+            services.AddSingleton<TelemetryClient>(new TelemetryClient());
+            Console.WriteLine("[LOG] Application Insights Telemetry Disabled.");
+        }
+
+        _services = services.BuildServiceProvider();
 
         var client = _services.GetRequiredService<DiscordSocketClient>();
 
@@ -103,16 +116,17 @@ public class Program
 
     private static async Task TrackPerformanceMetrics()
     {
+        var telemetryClient = _services.GetRequiredService<TelemetryClient>();
+
+        if (!telemetryClient.IsEnabled()) return; // Skip telemetry if disabled
+
         while (true)
         {
-            var telemetryClient = _services.GetRequiredService<TelemetryClient>();
-
             var process = Process.GetCurrentProcess();
-
             var memoryUsage = process.WorkingSet64 / (1024 * 1024);
             var cpuUsage = process.TotalProcessorTime.TotalMilliseconds;
 
-            telemetryClient.Track;.GetMetric("MemoryUsageMB").TrackValue(memoryUsage);
+            telemetryClient.GetMetric("MemoryUsageMB").TrackValue(memoryUsage);
             telemetryClient.GetMetric("CPUUsageMilliseconds").TrackValue(cpuUsage);
 
             await Task.Delay(TimeSpan.FromSeconds(30));
@@ -122,6 +136,13 @@ public class Program
     private static Task LogAsync(LogMessage log)
     {
         var telemetryClient = _services.GetRequiredService<TelemetryClient>();
+
+        if (!telemetryClient.IsEnabled())
+        {
+            // Skip telemetry if disabled
+            Console.WriteLine(log.ToString());
+            return Task.CompletedTask; 
+        }
 
         if (log.Exception is not null)
         {
