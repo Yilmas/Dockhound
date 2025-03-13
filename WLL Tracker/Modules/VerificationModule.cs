@@ -133,6 +133,8 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
         [UserCommand("Assign Applicant")]
         public async Task AssignApplicantAsync(IUser targetUser)
         {
+            await DeferAsync(ephemeral: true);
+
             if (Context.Guild == null)
             {
                 await RespondAsync("This command must be used in a server.", ephemeral: true);
@@ -161,7 +163,7 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
             if (!ulong.TryParse(_configuration["CHANNEL_APPLICANT_FORUM"], out ulong forumChannelId) ||
                 Context.Guild.GetChannel(forumChannelId) is not SocketForumChannel forumChannel)
             {
-                await RespondAsync("Forum channel not found or configuration error.", ephemeral: true);
+                await FollowupAsync("Forum channel not found or configuration error.", ephemeral: true);
                 return;
             }
 
@@ -186,7 +188,7 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
                 embed: embedBuilder.Build()
             );
 
-            await RespondAsync($"✅ Assigned **Applicant** to {targetUser.Mention}. Created applicant thread: {thread.Mention}.", ephemeral: true);
+            await FollowupAsync($"✅ Assigned **Applicant** to {targetUser.Mention}. Created applicant thread: {thread.Mention}.", ephemeral: true);
         }
     }
 }
