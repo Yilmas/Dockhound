@@ -68,10 +68,10 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
             using var response = await _httpClient.GetAsync(file.Url);
             response.EnsureSuccessStatusCode();
             await using var stream = new MemoryStream(await response.Content.ReadAsByteArrayAsync());
-
+            
             var embed = new EmbedBuilder()
                 .WithTitle("New Verification Submission")
-                .WithDescription($"A verification has been submitted by {Context.User.Username} - ({Context.User.Mention})")
+                .WithDescription($"A verification has been submitted by {Context.User.GlobalName ?? Context.User.Username} - ({Context.User.Mention})")
                 .AddField("Faction", faction, true)
                 .AddField("User ID", Context.User.Id.ToString(), true)
                 .AddField("Roles to be granted", DiscordRolesList.GetDeltaRoleMentions(Context.Guild.GetUser(Context.User.Id), faction.ToString()), false)
