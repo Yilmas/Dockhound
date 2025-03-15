@@ -71,7 +71,7 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
             
             var embed = new EmbedBuilder()
                 .WithTitle("New Verification Submission")
-                .WithDescription($"A verification has been submitted by {Context.User.GlobalName ?? Context.User.Username} - ({Context.User.Mention})")
+                .WithDescription($"A verification has been submitted by {Context.Guild.GetUser(Context.User.Id).DisplayName} - ({Context.User.Mention})")
                 .AddField("Faction", faction, true)
                 .AddField("User ID", Context.User.Id.ToString(), true)
                 .AddField("Roles to be granted", DiscordRolesList.GetDeltaRoleMentions(Context.Guild.GetUser(Context.User.Id), faction.ToString()), false)
@@ -207,7 +207,7 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
 
             // Create the thread
             var thread = await forumChannel.CreatePostAsync(
-                title: targetUser.GlobalName ?? targetUser.Username,
+                title: guildUser.DisplayName,
                 tags: tag != null ? [tag] : null,
                 embed: embedBuilder.Build()
             );
