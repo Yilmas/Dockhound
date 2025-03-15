@@ -142,6 +142,30 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
             }
 
             var guildUser = Context.Guild.GetUser(targetUser.Id);
+            var actingUser = Context.Guild.GetUser(Context.User.Id);
+
+            if(guildUser == null || actingUser == null)
+            {
+                await FollowupAsync("User not found.", ephemeral: true);
+                return;
+            }
+
+            // Retrieve allowed roles from environment variable
+            var allowedRoleIds = _configuration["ALLOWED_APPLICANT_ASSIGNER_ROLES"]
+                ?.Split(',')
+                .Select(id => ulong.TryParse(id, out var roleId) ? roleId : (ulong?)null)
+                .Where(id => id.HasValue)
+                .Select(id => id.Value)
+                .ToList() ?? new List<ulong>();
+
+            // Check if the acting user is assigning to themselves OR has a required role
+            bool canAssign = Context.User.Id == targetUser.Id || actingUser.Roles.Any(r => allowedRoleIds.Contains(r.Id));
+
+            if (!canAssign)
+            {
+                await FollowupAsync("❌ You do not have permission to assign the **Applicant** role.", ephemeral: true);
+                return;
+            }
 
             // Determine faction based on roles
             var factionRole = DiscordRolesList.GetRoles().First(p => p.Name == "Faction");
