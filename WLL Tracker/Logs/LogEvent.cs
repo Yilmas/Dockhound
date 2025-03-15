@@ -36,7 +36,7 @@ namespace WLL_Tracker.Logs
             Env = GetCurrentEnvironment();
             Changes = changes;
 
-            Console.WriteLine($"{DateTime.UtcNow.TimeOfDay} [LOG] LogEvent, created by {Username}");
+            Console.WriteLine($"{DateTime.UtcNow:HH:mm:ss} [LOG] LogEvent, created by {Username}");
         }
         public T? GetChanges<T>()
         {

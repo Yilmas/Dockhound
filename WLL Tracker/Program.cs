@@ -36,7 +36,7 @@ public class Program
     
     public static async Task Main()
     {
-        Console.WriteLine("[LOG] Starting WLL Tracker");
+        Console.WriteLine($"{DateTime.UtcNow:HH:mm:ss} [LOG] Starting WLL Tracker");
 
         _configuration = new ConfigurationBuilder()
             .AddEnvironmentVariables(prefix: "WLL_")
@@ -75,7 +75,7 @@ public class Program
         else
         {
             services.AddSingleton<TelemetryClient>(new TelemetryClient());
-            Console.WriteLine("[LOG] Application Insights Telemetry Disabled.");
+            Console.WriteLine($"{DateTime.UtcNow:HH:mm:ss} [LOG] Application Insights Telemetry Disabled.");
         }
 
         _services = services.BuildServiceProvider();
@@ -98,10 +98,10 @@ public class Program
         await _services.GetRequiredService<InteractionHandler>().InitializeAsync();
         
         if (_configuration["TOKEN"] != null)
-            Console.WriteLine("[LOG] Token Acquired!");
+            Console.WriteLine($"{DateTime.UtcNow:HH:mm:ss} [LOG] Token Acquired!");
         else
         {
-            Console.WriteLine("[ERROR] Token Missing!");
+            Console.WriteLine($"{DateTime.UtcNow:HH:mm:ss} [ERROR] Token Missing!");
             Environment.Exit(1);
         }
 
@@ -140,7 +140,7 @@ public class Program
         if (!telemetryClient.IsEnabled())
         {
             // Skip telemetry if disabled
-            Console.WriteLine(log.ToString());
+            Console.WriteLine($"{log.ToString()}");
             return Task.CompletedTask; 
         }
 
@@ -162,7 +162,7 @@ public class Program
 
         telemetryClient.TrackTrace($"[{log.Severity}] {log.Source}: {log.Message}");
 
-        Console.WriteLine(log.ToString());
+        Console.WriteLine($"{log.ToString()}");
         return Task.CompletedTask;
     }
 }
