@@ -109,27 +109,6 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
             }
         }
 
-        [RequireUserPermission(GuildPermission.ManageMessages)]
-        [SlashCommand("info", "Provides information on the verification process.")]
-        public async Task VerifyInfo()
-        {
-            string imageUrl = _configuration["VERIFY_IMAGEURL"];
-
-            var embed = new EmbedBuilder()
-                .WithTitle("Looking to Verify?")
-                .WithDescription("Follow the steps below to get yourself verified.")
-                .AddField("Steps to Verify", "1. Enter `/verify me`\n2. Upload your `MAP SCREEN Screenshot`\n3. Select `Colonial` or `Warden`", false)
-                .AddField("**Required Screenshot**", "Map Screenshot **ONLY**\nScreenshots from **Home Region** OR **Secure Map** will be **rejected**.", false)
-                .AddField("\u200B​", "\u200B", false)
-                .AddField("**How long will it take?**", "If you have given us the correct information, one of the officers will handle your request asap.", false)
-                .WithImageUrl(imageUrl)
-                .WithColor(Color.Gold)
-                .WithFooter("Brought to you by WLL Cannonsmoke")
-                .Build();
-
-            await RespondAsync(embed: embed);
-        }
-
         [UserCommand("Assign Applicant")]
         public async Task AssignApplicantAsync(IUser targetUser)
         {
@@ -144,7 +123,7 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
             var guildUser = Context.Guild.GetUser(targetUser.Id);
             var actingUser = Context.Guild.GetUser(Context.User.Id);
 
-            if(guildUser == null || actingUser == null)
+            if (guildUser == null || actingUser == null)
             {
                 await FollowupAsync("User not found.", ephemeral: true);
                 return;

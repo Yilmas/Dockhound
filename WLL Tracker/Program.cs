@@ -53,7 +53,10 @@ public class Program
             .AddSingleton<TrackerModule>()
             .AddSingleton<TrackerModule.TrackerSetup>()
             .AddSingleton<VerificationModule>()
-            .AddSingleton<VerificationModule.VerifySetup>();
+            .AddSingleton<VerificationModule.VerifySetup>()
+            .AddSingleton<DockAdminModule>()
+            .AddSingleton<DockAdminModule.DockAdminSetup>()
+            .AddSingleton<DockAdminModule.DockAdminSetup.VerifyAdminSetup>();
 
         bool enableTelemetry = !string.IsNullOrEmpty(_configuration["APPINSIGHTS_CONN"]);
 
