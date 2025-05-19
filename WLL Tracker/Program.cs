@@ -37,7 +37,9 @@ public class Program
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
             .AddEnvironmentVariables(prefix: "WLL_")
             .Build();
-        
+
+        Console.WriteLine($"{DateTime.UtcNow:HH:mm:ss} [LOG]"+_configuration.GetSection("AppSettings").Value);
+
         var services = new ServiceCollection()
             .Configure<AppSettings>(_configuration.GetSection("AppSettings"))
             .AddSingleton(_configuration)

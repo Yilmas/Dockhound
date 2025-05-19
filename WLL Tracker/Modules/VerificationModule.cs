@@ -21,6 +21,7 @@ using WLL_Tracker.Modals;
 using static Microsoft.ApplicationInsights.MetricDimensionNames.TelemetryContext;
 using Microsoft.Extensions.Options;
 using System.Runtime;
+using Microsoft.IdentityModel.Tokens;
 
 namespace WLL_Tracker.Modules;
 
@@ -59,9 +60,9 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
 
             long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 
-            //ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out ulong reviewChannelId);
-            
-            var reviewChannel = Context.Guild.GetTextChannel(_settings.Verify.ReviewChannelId);
+            ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out ulong reviewChannelId);
+
+            var reviewChannel = Context.Guild.GetTextChannel(reviewChannelId);
 
             if (reviewChannel == null)
             {

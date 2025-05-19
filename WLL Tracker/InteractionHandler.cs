@@ -553,8 +553,8 @@ public class InteractionHandler
 
             var reason = arg.Data.Components.First().Value;
 
-            //ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out ulong reviewChannelId);
-            var verificationChannel = await guild.GetTextChannelAsync(_settings.Verify.ReviewChannelId);
+            ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out ulong reviewChannelId); // TODO: FIX ME
+            var verificationChannel = await guild.GetTextChannelAsync(reviewChannelId);
             if (verificationChannel == null)
             {
                 await arg.RespondAsync("Error: Could not find the verification channel.", ephemeral: true);
