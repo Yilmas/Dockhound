@@ -63,7 +63,10 @@ public class InteractionHandler
     {
         await _client.SetActivityAsync(new Game("user requests", ActivityType.Listening));
 
-        await DeleteAllCommandsAsync();
+        if(AppSettingsService.GetCurrentEnvironment() == EnvironmentState.Development)
+        {
+            await DeleteAllCommandsAsync();
+        }
 
         foreach (var item in _client.Guilds)
         {

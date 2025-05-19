@@ -55,7 +55,7 @@ public class TrackerModule : InteractionModuleBase<SocketInteractionContext>
                     .AddField("Blue", 0, true)
                     .AddField("DarkBlue", 0, true)
                     .AddField("White", 0, true)
-                    .WithFooter("Brought to you by WLL Cannonsmoke");
+                    .WithFooter("Brought to you by High Velocity Logistics");
 
                 var builder = new ComponentBuilder()
                     .WithButton(label: "Edit Container Count", "btn-container-count", style: ButtonStyle.Secondary);

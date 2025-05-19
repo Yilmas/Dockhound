@@ -34,7 +34,7 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
     }
 
     [CommandContextType(InteractionContextType.Guild)]
-    [Group("verify", "Root command of WLL Verification Program")]
+    [Group("verify", "Root command of the HvL Verification Program")]
     public class VerifySetup : InteractionModuleBase<SocketInteractionContext>
     {
         private readonly WllTrackerContext _dbContext;
@@ -109,90 +109,92 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
             }
         }
 
-        [UserCommand("Assign Applicant")]
-        public async Task AssignApplicantAsync(IUser targetUser)
-        {
-            await DeferAsync(ephemeral: true);
+        // TODO: Excluded to avoid confusion
 
-            if (Context.Guild == null)
-            {
-                await RespondAsync("This command must be used in a server.", ephemeral: true);
-                return;
-            }
+        //[UserCommand("Assign Applicant")]
+        //public async Task AssignApplicantAsync(IUser targetUser)
+        //{
+        //    await DeferAsync(ephemeral: true);
 
-            var guildUser = Context.Guild.GetUser(targetUser.Id);
-            var actingUser = Context.Guild.GetUser(Context.User.Id);
+        //    if (Context.Guild == null)
+        //    {
+        //        await RespondAsync("This command must be used in a server.", ephemeral: true);
+        //        return;
+        //    }
 
-            if (guildUser == null || actingUser == null)
-            {
-                await FollowupAsync("User not found.", ephemeral: true);
-                return;
-            }
+        //    var guildUser = Context.Guild.GetUser(targetUser.Id);
+        //    var actingUser = Context.Guild.GetUser(Context.User.Id);
 
-            // Retrieve allowed roles from environment variable
-            var allowedRoleIds = _configuration["ALLOWED_APPLICANT_ASSIGNER_ROLES"]
-                ?.Split(',')
-                .Select(id => ulong.TryParse(id, out var roleId) ? roleId : (ulong?)null)
-                .Where(id => id.HasValue)
-                .Select(id => id.Value)
-                .ToList() ?? new List<ulong>();
+        //    if (guildUser == null || actingUser == null)
+        //    {
+        //        await FollowupAsync("User not found.", ephemeral: true);
+        //        return;
+        //    }
 
-            // Check if the acting user is assigning to themselves OR has a required role
-            bool canAssign = Context.User.Id == targetUser.Id || actingUser.Roles.Any(r => allowedRoleIds.Contains(r.Id));
+        //    // Retrieve allowed roles from environment variable
+        //    var allowedRoleIds = _configuration["ALLOWED_APPLICANT_ASSIGNER_ROLES"]
+        //        ?.Split(',')
+        //        .Select(id => ulong.TryParse(id, out var roleId) ? roleId : (ulong?)null)
+        //        .Where(id => id.HasValue)
+        //        .Select(id => id.Value)
+        //        .ToList() ?? new List<ulong>();
 
-            if (!canAssign)
-            {
-                await FollowupAsync("❌ You do not have permission to assign the **Applicant** role.", ephemeral: true);
-                return;
-            }
+        //    // Check if the acting user is assigning to themselves OR has a required role
+        //    bool canAssign = Context.User.Id == targetUser.Id || actingUser.Roles.Any(r => allowedRoleIds.Contains(r.Id));
 
-            // Determine faction based on roles
-            var factionRole = DiscordRolesList.GetRoles().First(p => p.Name == "Faction");
-            string faction = guildUser.Roles.Any(r => r.Id == factionRole.Colonial) ? "Colonial"
-                          : guildUser.Roles.Any(r => r.Id == factionRole.Warden) ? "Warden"
-                          : string.Empty;
+        //    if (!canAssign)
+        //    {
+        //        await FollowupAsync("❌ You do not have permission to assign the **Applicant** role.", ephemeral: true);
+        //        return;
+        //    }
 
-            // Assign applicant roles
-            var applicantFactionRole = DiscordRolesList.GetRoles().First(p => p.Name == "Applicant");
-            var rolesToAssign = new List<ulong> { applicantFactionRole.Generic };
+        //    // Determine faction based on roles
+        //    var factionRole = DiscordRolesList.GetRoles().First(p => p.Name == "Faction");
+        //    string faction = guildUser.Roles.Any(r => r.Id == factionRole.Colonial) ? "Colonial"
+        //                  : guildUser.Roles.Any(r => r.Id == factionRole.Warden) ? "Warden"
+        //                  : string.Empty;
 
-            if (faction == "Colonial") rolesToAssign.Add(applicantFactionRole.Colonial);
-            if (faction == "Warden") rolesToAssign.Add(applicantFactionRole.Warden);
+        //    // Assign applicant roles
+        //    var applicantFactionRole = DiscordRolesList.GetRoles().First(p => p.Name == "Applicant");
+        //    var rolesToAssign = new List<ulong> { applicantFactionRole.Generic };
 
-            if (rolesToAssign.Any())
-                await guildUser.AddRolesAsync(rolesToAssign);
+        //    if (faction == "Colonial") rolesToAssign.Add(applicantFactionRole.Colonial);
+        //    if (faction == "Warden") rolesToAssign.Add(applicantFactionRole.Warden);
 
-            // Retrieve and validate forum channel
-            if (!ulong.TryParse(_configuration["CHANNEL_APPLICANT_FORUM"], out ulong forumChannelId) ||
-                Context.Guild.GetChannel(forumChannelId) is not SocketForumChannel forumChannel)
-            {
-                await FollowupAsync("Forum channel not found or configuration error.", ephemeral: true);
-                return;
-            }
+        //    if (rolesToAssign.Any())
+        //        await guildUser.AddRolesAsync(rolesToAssign);
 
-            // Build the embed
-            var embedBuilder = new EmbedBuilder()
-                .WithTitle("Applicant Promotion")
-                .WithDescription($"{targetUser.Mention} has been assigned the **Applicant** role. Use this thread to discuss their applicant promotion.")
-                .WithThumbnailUrl(targetUser.GetAvatarUrl())
-                .WithColor(Color.Green);
+        //    // Retrieve and validate forum channel
+        //    if (!ulong.TryParse(_configuration["CHANNEL_APPLICANT_FORUM"], out ulong forumChannelId) ||
+        //        Context.Guild.GetChannel(forumChannelId) is not SocketForumChannel forumChannel)
+        //    {
+        //        await FollowupAsync("Forum channel not found or configuration error.", ephemeral: true);
+        //        return;
+        //    }
 
-            if (Context.User.Id != targetUser.Id)
-                embedBuilder.AddField("Applicant By", Context.User.Mention, false);
+        //    // Build the embed
+        //    var embedBuilder = new EmbedBuilder()
+        //        .WithTitle("Applicant Promotion")
+        //        .WithDescription($"{targetUser.Mention} has been assigned the **Applicant** role. Use this thread to discuss their applicant promotion.")
+        //        .WithThumbnailUrl(targetUser.GetAvatarUrl())
+        //        .WithColor(Color.Green);
 
-            // Retrieve and validate forum tag
-            ulong.TryParse(_configuration["CHANNEL_APPLICANT_FORUM_PENDINGTAG"], out ulong tagId);
-            var tag = forumChannel.Tags.FirstOrDefault(p => p.Id == tagId);
+        //    if (Context.User.Id != targetUser.Id)
+        //        embedBuilder.AddField("Applicant By", Context.User.Mention, false);
 
-            // Create the thread
-            var thread = await forumChannel.CreatePostAsync(
-                title: guildUser.DisplayName,
-                tags: tag != null ? [tag] : null,
-                embed: embedBuilder.Build()
-            );
+        //    // Retrieve and validate forum tag
+        //    ulong.TryParse(_configuration["CHANNEL_APPLICANT_FORUM_PENDINGTAG"], out ulong tagId);
+        //    var tag = forumChannel.Tags.FirstOrDefault(p => p.Id == tagId);
 
-            await FollowupAsync($"✅ Assigned **Applicant** to {targetUser.Mention}. Created applicant thread: {thread.Mention}.", ephemeral: true);
-        }
+        //    // Create the thread
+        //    var thread = await forumChannel.CreatePostAsync(
+        //        title: guildUser.DisplayName,
+        //        tags: tag != null ? [tag] : null,
+        //        embed: embedBuilder.Build()
+        //    );
+
+        //    await FollowupAsync($"✅ Assigned **Applicant** to {targetUser.Mention}. Created applicant thread: {thread.Mention}.", ephemeral: true);
+        //}
     }
 }
 

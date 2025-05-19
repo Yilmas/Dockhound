@@ -1,21 +1,16 @@
 ﻿using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Diagnostics;
-using System.Globalization;
-using System.Reflection;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.DataContracts;
+using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using System.Diagnostics;
 using WLL_Tracker.Logs;
 using WLL_Tracker.Models;
 using WLL_Tracker.Modules;
-using Microsoft.ApplicationInsights.Extensibility;
 
 namespace WLL_Tracker;
 
@@ -36,13 +31,15 @@ public class Program
     
     public static async Task Main()
     {
-        Console.WriteLine($"{DateTime.UtcNow:HH:mm:ss} [LOG] Starting WLL Tracker");
+        Console.WriteLine($"{DateTime.UtcNow:HH:mm:ss} [LOG] Starting Dockhound");
 
         _configuration = new ConfigurationBuilder()
+            .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
             .AddEnvironmentVariables(prefix: "WLL_")
             .Build();
         
         var services = new ServiceCollection()
+            .Configure<AppSettings>(_configuration.GetSection("AppSettings"))
             .AddSingleton(_configuration)
             .AddSingleton(_socketConfig)
             .AddSingleton<HttpClient>()

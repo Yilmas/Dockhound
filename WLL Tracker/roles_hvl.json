@@ -1,0 +1,44 @@
+[
+  {
+    "Name": "Faction",
+    "Colonial": "1373561610404364429",
+    "Warden": "1373561655547658393",
+    "Generic": ""
+  },
+  {
+    "Name": "Ally",
+    "Colonial": "1373753056025383072",
+    "Warden": "",
+    "Generic": "1373561706361389086"
+  },
+  {
+    "Name": "Recruit",
+    "Colonial": "1373753262532071496",
+    "Warden": "",
+    "Generic": "1373592004679962705"
+  },
+  {
+    "Name": "Member",
+    "Colonial": "1373753359378677770",
+    "Warden": "",
+    "Generic": "1373410747282882610"
+  },
+  {
+    "Name": "Warrant Officer",
+    "Colonial": "1373753475397189662",
+    "Warden": "",
+    "Generic": "1373561544599797841"
+  },
+  {
+    "Name": "Lieutenant",
+    "Colonial": "1373753582364524776",
+    "Warden": "",
+    "Generic": "1373561432729194556"
+  },
+  {
+    "Name": "Officer",
+    "Colonial": "1373753655915712583",
+    "Warden": "",
+    "Generic": "1372870089703030834"
+  }
+]

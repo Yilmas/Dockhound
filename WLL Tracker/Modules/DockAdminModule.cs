@@ -2,6 +2,7 @@
 using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -23,15 +24,17 @@ namespace WLL_Tracker.Modules
                 private readonly WllTrackerContext _dbContext;
                 private readonly HttpClient _httpClient;
                 private readonly IConfiguration _configuration;
+                private readonly AppSettings _settings;
 
-                public VerifyAdminSetup(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config)
+                public VerifyAdminSetup(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings)
                 {
                     _dbContext = dbContext;
                     _httpClient = httpClient;
                     _configuration = config;
+                    _settings = appSettings.Value;
                 }
 
-                [RequireUserPermission(GuildPermission.ManageMessages)]
+                [RequireUserPermission(GuildPermission.Administrator)]
                 [SlashCommand("info", "Provides information on the verification process.")]
                 public async Task VerifyInfo()
                 {
@@ -52,7 +55,7 @@ namespace WLL_Tracker.Modules
                     await RespondAsync(embed: embed);
                 }
 
-                [RequireUserPermission(GuildPermission.ManageMessages)]
+                [RequireUserPermission(GuildPermission.Administrator)]
                 [SlashCommand("applicant_button", "Create Button for Applicants to use")]
                 public async Task ApplicantButton()
                 {
@@ -64,6 +67,88 @@ namespace WLL_Tracker.Modules
                         components: button.Build()
                     );
                 }
+
+                [RequireUserPermission(GuildPermission.Administrator)]
+                [SlashCommand("restrict", "Toggles restriction for verifications")]
+                public async Task RestrictToggle()
+                {
+                    await DeferAsync(ephemeral: true);
+
+                    var channel = Context.Channel as SocketTextChannel;
+                    if (channel == null)
+                    {
+                        await FollowupAsync("This command can only be used in text channels.", ephemeral: true);
+                        return;
+                    }
+
+                    if (_settings.Verify.RestrictedAccess.Whitelist == null)
+                    {
+                        await FollowupAsync("No whitelisted roles!", ephemeral: true);
+                        return;
+                    }
+
+                    var everyoneRole = Context.Guild.EveryoneRole;
+                    var currentOverwrite = channel.GetPermissionOverwrite(everyoneRole);
+                    bool isRestricted = currentOverwrite?.SendMessages == PermValue.Deny;
+
+                    if (!isRestricted)
+                    {
+                        // Restricting...
+                        await channel.AddPermissionOverwriteAsync(everyoneRole, new OverwritePermissions(
+                            viewChannel: PermValue.Allow,
+                            sendMessages: PermValue.Deny,
+                            useApplicationCommands: PermValue.Deny));
+
+                        foreach (var roleId in _settings.Verify.RestrictedAccess.Whitelist)
+                        {
+                            var role = Context.Guild.GetRole(roleId);
+                            if (role != null)
+                            {
+                                await channel.AddPermissionOverwriteAsync(role, new OverwritePermissions(
+                                    sendMessages: PermValue.Allow,
+                                    useApplicationCommands: PermValue.Allow));
+                            }
+                        }
+
+                        var restrictionMessage = await channel.SendMessageAsync("## 🔒 Pre-Verification for the upcoming war is ONLY open for WLL personnel 🔒\nNon-WLL can verify 1 hour after war start.");
+                        AppSettingsService.UpdateRestrictedAccess(channel.Id, restrictionMessage.Id);
+
+                        await FollowupAsync("Restrictions applied.", ephemeral: true);
+                    }
+                    else
+                    {
+                        // Unrestricting...
+                        await channel.AddPermissionOverwriteAsync(everyoneRole, new OverwritePermissions(
+                            viewChannel: PermValue.Allow,
+                            sendMessages: PermValue.Allow,
+                            useApplicationCommands: PermValue.Allow));
+
+                        foreach (var roleId in _settings.Verify.RestrictedAccess.Whitelist)
+                        {
+                            var role = Context.Guild.GetRole(roleId);
+                            if (role != null)
+                            {
+                                await channel.RemovePermissionOverwriteAsync(role);
+                            }
+                        }
+
+                        var msgId = _settings.Verify.RestrictedAccess.ChannelId;
+                        if (msgId != null)
+                        {
+                            try
+                            {
+                                var msg = await channel.GetMessageAsync(msgId.Value);
+                                await msg.DeleteAsync();
+                            }
+                            catch { /* silently ignore errors */ }
+
+                            AppSettingsService.UpdateRestrictedAccess();
+                        }
+
+                        await FollowupAsync("Restrictions removed.", ephemeral: true);
+                    }
+                }
+
             }
         }
     }
