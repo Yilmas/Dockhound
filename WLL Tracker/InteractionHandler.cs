@@ -297,7 +297,7 @@ public class InteractionHandler
                     
                     var factionSecureChannel = await guild.GetTextChannelAsync(factionSecureComms);
 
-                    await user.SendMessageAsync($"✅ Your WLL verification has been approved! 🎉 You now have access to faction-specific channels such as {factionSecureChannel.Mention}.");
+                    await user.SendMessageAsync($"✅ Your HvL verification has been approved! 🎉 You now have access to faction-specific channels such as {factionSecureChannel.Mention}.");
                 }
                 catch
                 {
@@ -586,7 +586,7 @@ public class InteractionHandler
             // Notify user via DM
             try
             {
-                await user.SendMessageAsync($"❌ Your verification has been denied.\n**Reason:** {reason}");
+                await user.SendMessageAsync($"❌ Your verification for HvL has been denied.\n**Reason:** {reason}");
             }
             catch
             {
