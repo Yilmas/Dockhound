@@ -19,6 +19,8 @@ using WLL_Tracker.Models;
 using Microsoft.Extensions.Configuration;
 using WLL_Tracker.Modals;
 using static Microsoft.ApplicationInsights.MetricDimensionNames.TelemetryContext;
+using Microsoft.Extensions.Options;
+using System.Runtime;
 
 namespace WLL_Tracker.Modules;
 
@@ -40,12 +42,14 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
         private readonly WllTrackerContext _dbContext;
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
+        private readonly AppSettings _settings;
 
-        public VerifySetup(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config)
+        public VerifySetup(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings)
         {
             _dbContext = dbContext;
             _httpClient = httpClient;
             _configuration = config;
+            _settings = appSettings.Value;
         }
 
         [SlashCommand("me", "Basic Verification")]
@@ -55,9 +59,9 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
 
             long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 
-            ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out ulong reviewChannelId);
-
-            var reviewChannel = Context.Guild.GetTextChannel(reviewChannelId);
+            //ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out ulong reviewChannelId);
+            
+            var reviewChannel = Context.Guild.GetTextChannel(_settings.Verify.ReviewChannelId);
 
             if (reviewChannel == null)
             {

@@ -3,6 +3,7 @@ using Discord.Interactions;
 using Discord.WebSocket;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Microsoft.VisualBasic;
 using System;
 using System.ComponentModel;
@@ -29,14 +30,16 @@ public class InteractionHandler
     private readonly IServiceProvider _services;
     private readonly IConfiguration _configuration;
     private readonly WllTrackerContext _dbContext;
+    private readonly AppSettings _settings;
 
-    public InteractionHandler(DiscordSocketClient client, InteractionService handler, IServiceProvider services, IConfiguration config, WllTrackerContext dbContext)
+    public InteractionHandler(DiscordSocketClient client, InteractionService handler, IServiceProvider services, IConfiguration config, WllTrackerContext dbContext, IOptions<AppSettings> appSettings)
     {
         _client = client;
         _handler = handler;
         _services = services;
         _configuration = config;
         _dbContext = dbContext;
+        _settings = appSettings.Value;
     }
 
     public async Task InitializeAsync()
@@ -550,8 +553,8 @@ public class InteractionHandler
 
             var reason = arg.Data.Components.First().Value;
 
-            ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out ulong reviewChannelId);
-            var verificationChannel = await guild.GetTextChannelAsync(reviewChannelId);
+            //ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out ulong reviewChannelId);
+            var verificationChannel = await guild.GetTextChannelAsync(_settings.Verify.ReviewChannelId);
             if (verificationChannel == null)
             {
                 await arg.RespondAsync("Error: Could not find the verification channel.", ephemeral: true);
