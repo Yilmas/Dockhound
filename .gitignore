@@ -404,3 +404,4 @@ FodyWeavers.xsd
 /WLL Tracker/wll-roles-config_prod.json
 /WLL Tracker/wll-roles-config_test.json
 /WLL Tracker/roles.json
+/WLL Tracker/appsettings.json
