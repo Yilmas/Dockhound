@@ -9,9 +9,11 @@ Your friendly Companion Bot, for when you feel lonely and abandoned in the yard!
 - Yard Tracker
 - Whiteboard
 - Verification (auto-role manager)
+	- Restrict channel
+	- Request Recruit & Ally
+- Bookmark
+
 
 ## WIP Features:
 - Multi-Server support
-- Bookmark
 - Facilitate all Container Colors
-- Request Role, tied to Verification
