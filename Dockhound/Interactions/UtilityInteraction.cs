@@ -1,0 +1,42 @@
+﻿using Discord;
+using Discord.Interactions;
+using Discord.WebSocket;
+using Dockhound.Logs;
+using Dockhound.Modals;
+using Dockhound.Models;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+
+namespace Dockhound.Interactions
+{
+    public class UtilityInteraction : InteractionModuleBase<SocketInteractionContext>
+    {
+        private readonly WllTrackerContext _dbContext;
+        private readonly HttpClient _httpClient;
+        private readonly IConfiguration _configuration;
+        private readonly AppSettings _settings;
+
+        private long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
+
+        public UtilityInteraction(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings)
+        {
+            _dbContext = dbContext;
+            _httpClient = httpClient;
+            _configuration = config;
+            _settings = appSettings.Value;
+        }
+
+        [ComponentInteraction("btn-remove-bookmark")]
+        public async Task OpenCountModal()
+        {
+            var comp = (Discord.WebSocket.SocketMessageComponent)Context.Interaction;
+            await comp.Message.DeleteAsync();
+        }
+    }
+}

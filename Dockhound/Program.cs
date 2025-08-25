@@ -11,6 +11,7 @@ using System.Diagnostics;
 using Dockhound.Logs;
 using Dockhound.Models;
 using Dockhound.Modules;
+using Dockhound.Interactions;
 
 namespace Dockhound;
 

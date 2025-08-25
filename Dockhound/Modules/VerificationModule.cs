@@ -114,7 +114,7 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
             }
         }
 
-        // TODO: Excluded to avoid confusion
+        // TODO: Removed applicant, but keeping to maintain code reference.
 
         //[UserCommand("Assign Applicant")]
         //public async Task AssignApplicantAsync(IUser targetUser)

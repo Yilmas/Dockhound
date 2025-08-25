@@ -52,9 +52,6 @@ public class InteractionHandler
 
         _client.InteractionCreated += HandleInteraction;
         _handler.InteractionExecuted += HandleInteractionExecute;
-        _client.SelectMenuExecuted += SelectMenuExecuted;
-        _client.ModalSubmitted += ModalSubmitted;
-        _client.ButtonExecuted += ButtonExecuted;
         _client.ReactionAdded += OnReactionAddedAsync;
     }
 
@@ -173,455 +170,93 @@ public class InteractionHandler
         return Task.CompletedTask;
     }
 
-    public async Task SelectMenuExecuted(SocketMessageComponent arg)
-    {
-        throw new NotImplementedException();
-    }
-
-    public async Task ButtonExecuted(SocketMessageComponent arg)
-    {
-        if (arg.Data.CustomId == "btn-container-count")
-        {
-            var msgEmbed = arg.Message.Embeds.First().ToEmbedBuilder();
-            var countRed = msgEmbed.Fields.Single(x => x.Name.ToLower() == "red").Value;
-            var countGreen = msgEmbed.Fields.Single(x => x.Name.ToLower() == "green").Value;
-            var countBlue = msgEmbed.Fields.Single(x => x.Name.ToLower() == "blue").Value;
-            var countDarkBlue = msgEmbed.Fields.Single(x => x.Name.ToLower() == "darkblue").Value;
-            var countWhite = msgEmbed.Fields.Single(x => x.Name.ToLower() == "white").Value;
-
-            var modal = new ModalBuilder()
-                .WithTitle($"Update Container Count")
-                .WithCustomId("update-count-modal")
-                .AddTextInput("Red", $"update-count-red", value: countRed.ToString(), minLength: 1, maxLength: 3)
-                .AddTextInput("Green", $"update-count-green", value: countGreen.ToString(), minLength: 1, maxLength: 3)
-                .AddTextInput("Blue", $"update-count-blue", value: countBlue.ToString(), minLength: 1, maxLength: 3)
-                .AddTextInput("Dark Blue", $"update-count-darkblue", value: countDarkBlue.ToString(), minLength: 1, maxLength: 3)
-                .AddTextInput("White", $"update-count-white", value: countWhite.ToString(), minLength: 1, maxLength: 3);
-
-            await arg.RespondWithModalAsync(modal.Build());
-        }
-
-        if (arg.Data.CustomId == "btn-whiteboard-update")
-        {
-            if (arg.GuildId == null)
-            {
-                await arg.RespondAsync("Must be used in a guild.", ephemeral: true);
-                return;
-            }
-
-            var msgBoardEmbed = arg.Message.Embeds.First().ToEmbedBuilder();
-
-            var lines = msgBoardEmbed.Description.Split(new[] { '\r', '\n' }, StringSplitOptions.None);
-            var modLines = lines.Take((lines.Length - 2));
-            string boardValue = string.Join("\n", modLines);
-
-            var modalBoard = new ModalBuilder()
-                .WithTitle($"Add Message")
-                .WithCustomId("update-whiteboard-modal")
-                .AddTextInput("Message", "update-whiteboard-edit", TextInputStyle.Paragraph, value: boardValue, maxLength: 2048, required: true);
-
-            await arg.RespondWithModalAsync(modalBoard.Build());
-        }
-
-        if (arg.Data.CustomId is "approve_verification" or "deny_verification")
-        {
-            var embed = arg.Message.Embeds.FirstOrDefault()?.ToEmbedBuilder();
-            if (embed == null)
-            {
-                await arg.RespondAsync("Error: No embed found in this message.", ephemeral: true);
-                return;
-            }
-
-            var userIdField = embed.Fields.FirstOrDefault(f => f.Name == "User ID");
-            if (userIdField == null || !ulong.TryParse((string?)userIdField.Value, out ulong userId))
-            {
-                await arg.RespondAsync("Error: Cold not extract user ID.", ephemeral: true);
-                return;
-            }
-
-            var factionField = embed.Fields.FirstOrDefault(f => f.Name == "Faction");
-            if (factionField == null)
-            {
-                await arg.RespondAsync("Error: Cold not extract selected faction.", ephemeral: true);
-                return;
-            }
-
-            var guild = (arg.Channel as IGuildChannel)?.Guild;
-            if (guild == null)
-            {
-                await arg.RespondAsync("Error: Could not extract guild.", ephemeral: true);
-                return;
-            }
-
-            var user = await guild.GetUserAsync(userId);
-            if (user == null)
-            {
-                await arg.RespondAsync("Error: Could not find user.", ephemeral: true);
-                return;
-            }
-
-            ulong.TryParse(_configuration["CHANNEL_VERIFY_NOTIFICATION"], out ulong notificationChannelId);
-            
-            var notificationChannel = await guild.GetTextChannelAsync(notificationChannelId);
-
-            if (arg.Data.CustomId == "approve_verification")
-            {
-                await arg.DeferAsync(ephemeral: true);
-
-                var rolesToAssign = DiscordRolesList.GetDeltaRoleIdList(user, (string)factionField.Value);
-
-                if (rolesToAssign.Count > 0)
-                {
-                    await user.AddRolesAsync(rolesToAssign);
-                }
-
-                embed.WithFooter($"Approved ✅ by {arg.User.Username}");
-
-                await arg.ModifyOriginalResponseAsync(msg =>
-                {
-                    msg.Embeds = new Embed[] { embed.Build() };
-                    msg.Components = new ComponentBuilder().Build(); // Remove buttons
-                });
-
-                if (notificationChannel != null)
-                {
-                    //await notificationChannel.SendMessageAsync($"{user.Mention}, your verification has been **approved**! 🎉 You now have access to faction specific channels.");
-                }
-
-                try
-                {
-                    ulong factionSecureComms = 0;
-
-                    if ((string)factionField.Value == "Colonial")
-                        ulong.TryParse(_configuration["CHANNEL_FACTION_COLONIAL_SECURE"], out factionSecureComms);
-                    if ((string)factionField.Value == "Warden")
-                        ulong.TryParse(_configuration["CHANNEL_FACTION_WARDEN_SECURE"], out factionSecureComms);
-                    
-                    var factionSecureChannel = await guild.GetTextChannelAsync(factionSecureComms);
-
-                    await user.SendMessageAsync($"✅ Your HvL verification has been approved! 🎉 You now have access to faction-specific channels such as {factionSecureChannel.Mention}.");
-                }
-                catch
-                {
-                    Console.WriteLine($"[ERROR] Failed to send a DM to {user.Username}. They may have DMs disabled.");
-                }
-
-                try
-                {
-                    var log = new LogEvent(
-                        eventName: "Verification Handler",
-                        messageId: arg.Message.Id,
-                        username: arg.User.Username,
-                        userId: arg.User.Id,
-                        changes: $"{arg.User.Username} approved access for {user.Username}"
-                    );
-
-                    _dbContext.LogEvents.Add(log);
-                    await _dbContext.SaveChangesAsync();
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
-                }
-            }
-            else if (arg.Data.CustomId == "deny_verification")
-            {
-                var modal = new ModalBuilder("Denial Reason", $"verify_deny_reason:{userId}:{arg.Message.Id}")
-                    .AddTextInput("Why are you denying this?", $"deny_reason_text", TextInputStyle.Paragraph, maxLength: 500, placeholder: "Enter the reason for denial...");
-
-                await arg.RespondWithModalAsync(modal.Build());
-            }
-        }
-
-        if(arg.Data.CustomId is "assign_applicant")
-        {
-            await arg.DeferAsync(ephemeral: true);
-
-            ulong targetUserId = arg.User.Id;
-
-            if (arg.GuildId == null)
-            {
-                await arg.FollowupAsync("This command must be used in a server.", ephemeral: true);
-                return;
-            }
-
-            var guild = (arg.Channel as SocketGuildChannel)?.Guild;
-            var guildUser = guild?.GetUser(targetUserId);
-            var actingUser = guild?.GetUser(arg.User.Id);
-
-            if (guildUser == null || actingUser == null)
-            {
-                await arg.FollowupAsync("User not found.", ephemeral: true);
-                return;
-            }
-
-            // Retrieve allowed roles from configuration
-            var allowedRoleIds = _configuration["ALLOWED_APPLICANT_ASSIGNER_ROLES"]
-                ?.Split(',')
-                .Select(id => ulong.TryParse(id, out var roleId) ? roleId : (ulong?)null)
-                .Where(id => id.HasValue)
-                .Select(id => id.Value)
-                .ToList() ?? new List<ulong>();
-
-            bool canAssign = arg.User.Id == targetUserId || actingUser.Roles.Any(r => allowedRoleIds.Contains(r.Id));
-
-            if (!canAssign)
-            {
-                await arg.FollowupAsync("❌ You do not have permission to assign the **Applicant** role.", ephemeral: true);
-                return;
-            }
-
-            // Determine faction
-            var factionRole = DiscordRolesList.GetRoles().First(p => p.Name == "Faction");
-            string faction = guildUser.Roles.Any(r => r.Id == factionRole.Colonial) ? "Colonial"
-                          : guildUser.Roles.Any(r => r.Id == factionRole.Warden) ? "Warden"
-                          : string.Empty;
-
-            var applicantFactionRole = DiscordRolesList.GetRoles().First(p => p.Name == "Applicant");
-            var rolesToAssign = new List<ulong> { applicantFactionRole.Generic };
-
-            if (faction == "Colonial") rolesToAssign.Add(applicantFactionRole.Colonial);
-            if (faction == "Warden") rolesToAssign.Add(applicantFactionRole.Warden);
-
-            if (rolesToAssign.Any())
-                await guildUser.AddRolesAsync(rolesToAssign);
-
-            // Forum channel
-            if (!ulong.TryParse(_configuration["CHANNEL_APPLICANT_FORUM"], out ulong forumChannelId) ||
-                guild.GetChannel(forumChannelId) is not SocketForumChannel forumChannel)
-            {
-                await arg.FollowupAsync("Forum channel not found or configuration error.", ephemeral: true);
-                return;
-            }
-
-            // Embed
-            var embedBuilder = new EmbedBuilder()
-                .WithTitle("Applicant Promotion")
-                .WithDescription($"{guildUser.Mention} has been assigned the **Applicant** role. Use this thread to discuss their applicant promotion.")
-                .WithThumbnailUrl(guildUser.GetAvatarUrl())
-                .WithColor(Color.Green);
-
-            if (arg.User.Id != guildUser.Id)
-                embedBuilder.AddField("Applicant By", arg.User.Mention, false);
-
-            // Forum tag
-            ulong.TryParse(_configuration["CHANNEL_APPLICANT_FORUM_PENDINGTAG"], out ulong tagId);
-            var tag = forumChannel.Tags.FirstOrDefault(p => p.Id == tagId);
-
-            var thread = await forumChannel.CreatePostAsync(
-                title: guildUser.DisplayName,
-                tags: tag != null ? [tag] : null,
-                embed: embedBuilder.Build()
-            );
-
-            await arg.FollowupAsync($"✅ Assigned **Applicant** to {guildUser.Mention}. Created applicant thread: {thread.Mention}.", ephemeral: true);
-        }
-        if(arg.Data.CustomId is "btn-remove-bookmark")
-        {
-            await arg.Message.DeleteAsync();
-        }
-    }
-
-    public async Task ModalSubmitted(SocketModal arg)
-    {
-        long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
-
-        // Count
-        if (arg.Data.CustomId == "update-count-modal")
-        {
-            var red = arg.Data.Components.Single(x => x.CustomId == "update-count-red").Value;
-            var green = arg.Data.Components.Single(x => x.CustomId == "update-count-green").Value;
-            var blue = arg.Data.Components.Single(x => x.CustomId == "update-count-blue").Value;
-            var darkblue = arg.Data.Components.Single(x => x.CustomId == "update-count-darkblue").Value;
-            var white = arg.Data.Components.Single(x => x.CustomId == "update-count-white").Value;
-
-            if (!Regex.IsMatch(red, @"^\d+$") ||
-                !Regex.IsMatch(green, @"^\d+$") ||
-                !Regex.IsMatch(blue, @"^\d+$") ||
-                !Regex.IsMatch(darkblue, @"^\d+$") ||
-                !Regex.IsMatch(white, @"^\d+$"))
-            {
-                await arg.RespondAsync("You must input a number!", ephemeral: true);
-                return;
-            }
-
-            red = red == "0" ? "0" : red.TrimStart('0');
-            green = green == "0" ? "0" : green.TrimStart('0');
-            blue = blue == "0" ? "0" : blue.TrimStart('0');
-            darkblue = darkblue == "0" ? "0" : darkblue.TrimStart('0');
-            white = white == "0" ? "0" : white.TrimStart('0');
-
-
-            var msgEmbed = arg.Message.Embeds.First().ToEmbedBuilder();
-            msgEmbed.WithDescription("Last Updated by " + arg.User.Mention + " <t:" + seconds + ":R>");
-            msgEmbed.Fields.Single(x => x.Name.ToLower() == "red").Value = red;
-            msgEmbed.Fields.Single(x => x.Name.ToLower() == "green").Value = green;
-            msgEmbed.Fields.Single(x => x.Name.ToLower() == "blue").Value = blue;
-            msgEmbed.Fields.Single(x => x.Name.ToLower() == "darkblue").Value = darkblue;
-            msgEmbed.Fields.Single(x => x.Name.ToLower() == "white").Value = white;
-
-            try
-            {
-                await arg.UpdateAsync(x =>
-                {
-                    x.Embed = msgEmbed.Build();
-                });
-            }
-            catch (Exception)
-            {
-                throw;
-            }
-            finally
-            {
-                // Log event with updated fields, author, timestamp UTC
-
-                var location = arg.Message.Embeds.First().Title;
-
-                try
-                {
-                    var log = new LogEvent(
-                        eventName: "Updated Yard Tracker",
-                        messageId: arg.Message.Id,
-                        username: arg.User.Username,
-                        userId: arg.User.Id,
-                        changes: $"Updated the count for {location}: Red: {red}, Green: {green}, Blue: {blue}, Dark Blue: {darkblue}, White: {white}"
-                    );
-
-                    _dbContext.LogEvents.Add(log);
-                    await _dbContext.SaveChangesAsync();
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
-                }
-            }
-            
-        }
-
-        // Whiteboard
-        if (arg.Data.CustomId == "update-whiteboard-modal")
-        {
-            var comp = arg.Data.Components.First();
-            var msg = await arg.Channel.GetMessageAsync(arg.Message.Id);
-
-            var msgEmbed = msg.Embeds.First().ToEmbedBuilder();
-            msgEmbed.Description = (comp.Value == string.Empty ? "Waiting for squibbles ..." : comp.Value + "\n\n_Last Updated by " + arg.User.Mention + " <t:" + seconds + ":R>_");
-
-            await arg.UpdateAsync(x =>
-            {
-                x.Embed = msgEmbed.Build();
-            });
-
-            var location = arg.Message.Embeds.First().Title;
-
-            try
-            {
-                var log = new LogEvent(
-                    eventName: "Updated Whiteboard",
-                    messageId: arg.Message.Id,
-                    username: arg.User.Username,
-                    userId: arg.User.Id,
-                    changes: $"Updated the whiteboard for {location}"
-                );
-
-                _dbContext.LogEvents.Add(log);
-                await _dbContext.SaveChangesAsync();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
-            }
-        }
-
-        // Handle the verification denial modal
-        if (arg.Data.CustomId.StartsWith("verify_deny_reason"))
-        {
-            var parts = arg.Data.CustomId.Split(':');
-            if (parts.Length < 3 || !ulong.TryParse(parts[1], out ulong userId) || !ulong.TryParse(parts[2], out ulong messageId))
-            {
-                await arg.RespondAsync("Error: Could not extract user or message ID.", ephemeral: true);
-                return;
-            }
-            
-            var guild = (arg.Channel as IGuildChannel)?.Guild;
-            if (guild == null)
-            {
-                await arg.RespondAsync("Error: Could not retrieve the guild.", ephemeral: true);
-                return;
-            }
-
-            var user = await guild.GetUserAsync(userId);
-            if (user == null)
-            {
-                await arg.RespondAsync("Error: Could not find the user.", ephemeral: true);
-                return;
-            }
-
-            var reason = arg.Data.Components.First().Value;
-
-            ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out ulong reviewChannelId); // TODO: FIX ME
-            var verificationChannel = await guild.GetTextChannelAsync(reviewChannelId);
-            if (verificationChannel == null)
-            {
-                await arg.RespondAsync("Error: Could not find the verification channel.", ephemeral: true);
-                return;
-            }
-
-            var message = await verificationChannel.GetMessageAsync(messageId) as IUserMessage;
-            if (message == null)
-            {
-                await arg.RespondAsync("Error: Could not retrieve the original verification message.", ephemeral: true);
-                return;
-            }
-
-            // Update the embed with the denial reason
-            var embed = message.Embeds.FirstOrDefault()?.ToEmbedBuilder();
-            if (embed != null)
-            {
-                embed.AddField("Denial Reason", reason, true);
-                embed.WithFooter($"Denied ❌ by {arg.User.Username}");
-                embed.WithColor(Color.Red);
-            }
-
-            await message.ModifyAsync(msg =>
-            {
-                msg.Embeds = new Embed[] { embed.Build() };
-                msg.Components = new ComponentBuilder().Build(); // Remove buttons
-            });
-
-            // Notify user via DM
-            try
-            {
-                await user.SendMessageAsync($"❌ Your verification for HvL has been denied.\n**Reason:** {reason}");
-            }
-            catch
-            {
-                await arg.RespondAsync($"Could not DM {user.Username}. They may have DMs disabled.", ephemeral: true);
-            }
-
-            await arg.RespondAsync("Denial reason submitted and user has been notified.", ephemeral: true);
-
-            // Log the denial
-            try
-            {
-                var log = new LogEvent(
-                    eventName: "Verification Denial",
-                    messageId: messageId,
-                    username: arg.User.Username,
-                    userId: userId,
-                    changes: $"{arg.User.Username} denied access for {user.Username} with reason: {reason}"
-                );
-
-                _dbContext.LogEvents.Add(log);
-                await _dbContext.SaveChangesAsync();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
-            }
-        }
-
-    }
+    // TODO: Applicant role assignment button (disabled for now)
+    //public async Task ButtonExecuted(SocketMessageComponent arg)
+    //{
+    //    if (arg.Data.CustomId is "assign_applicant")
+    //    {
+    //        await arg.DeferAsync(ephemeral: true);
+
+    //        ulong targetUserId = arg.User.Id;
+
+    //        if (arg.GuildId == null)
+    //        {
+    //            await arg.FollowupAsync("This command must be used in a server.", ephemeral: true);
+    //            return;
+    //        }
+
+    //        var guild = (arg.Channel as SocketGuildChannel)?.Guild;
+    //        var guildUser = guild?.GetUser(targetUserId);
+    //        var actingUser = guild?.GetUser(arg.User.Id);
+
+    //        if (guildUser == null || actingUser == null)
+    //        {
+    //            await arg.FollowupAsync("User not found.", ephemeral: true);
+    //            return;
+    //        }
+
+    //        // Retrieve allowed roles from configuration
+    //        var allowedRoleIds = _configuration["ALLOWED_APPLICANT_ASSIGNER_ROLES"]
+    //            ?.Split(',')
+    //            .Select(id => ulong.TryParse(id, out var roleId) ? roleId : (ulong?)null)
+    //            .Where(id => id.HasValue)
+    //            .Select(id => id.Value)
+    //            .ToList() ?? new List<ulong>();
+
+    //        bool canAssign = arg.User.Id == targetUserId || actingUser.Roles.Any(r => allowedRoleIds.Contains(r.Id));
+
+    //        if (!canAssign)
+    //        {
+    //            await arg.FollowupAsync("❌ You do not have permission to assign the **Applicant** role.", ephemeral: true);
+    //            return;
+    //        }
+
+    //        // Determine faction
+    //        var factionRole = DiscordRolesList.GetRoles().First(p => p.Name == "Faction");
+    //        string faction = guildUser.Roles.Any(r => r.Id == factionRole.Colonial) ? "Colonial"
+    //                      : guildUser.Roles.Any(r => r.Id == factionRole.Warden) ? "Warden"
+    //                      : string.Empty;
+
+    //        var applicantFactionRole = DiscordRolesList.GetRoles().First(p => p.Name == "Applicant");
+    //        var rolesToAssign = new List<ulong> { applicantFactionRole.Generic };
+
+    //        if (faction == "Colonial") rolesToAssign.Add(applicantFactionRole.Colonial);
+    //        if (faction == "Warden") rolesToAssign.Add(applicantFactionRole.Warden);
+
+    //        if (rolesToAssign.Any())
+    //            await guildUser.AddRolesAsync(rolesToAssign);
+
+    //        // Forum channel
+    //        if (!ulong.TryParse(_configuration["CHANNEL_APPLICANT_FORUM"], out ulong forumChannelId) ||
+    //            guild.GetChannel(forumChannelId) is not SocketForumChannel forumChannel)
+    //        {
+    //            await arg.FollowupAsync("Forum channel not found or configuration error.", ephemeral: true);
+    //            return;
+    //        }
+
+    //        // Embed
+    //        var embedBuilder = new EmbedBuilder()
+    //            .WithTitle("Applicant Promotion")
+    //            .WithDescription($"{guildUser.Mention} has been assigned the **Applicant** role. Use this thread to discuss their applicant promotion.")
+    //            .WithThumbnailUrl(guildUser.GetAvatarUrl())
+    //            .WithColor(Color.Green);
+
+    //        if (arg.User.Id != guildUser.Id)
+    //            embedBuilder.AddField("Applicant By", arg.User.Mention, false);
+
+    //        // Forum tag
+    //        ulong.TryParse(_configuration["CHANNEL_APPLICANT_FORUM_PENDINGTAG"], out ulong tagId);
+    //        var tag = forumChannel.Tags.FirstOrDefault(p => p.Id == tagId);
+
+    //        var thread = await forumChannel.CreatePostAsync(
+    //            title: guildUser.DisplayName,
+    //            tags: tag != null ? [tag] : null,
+    //            embed: embedBuilder.Build()
+    //        );
+
+    //        await arg.FollowupAsync($"✅ Assigned **Applicant** to {guildUser.Mention}. Created applicant thread: {thread.Mention}.", ephemeral: true);
+    //    }
+    //}
 
     private async Task OnReactionAddedAsync(Cacheable<IUserMessage, ulong> cacheable, Cacheable<IMessageChannel, ulong> cachechannel, SocketReaction reaction)
     {
