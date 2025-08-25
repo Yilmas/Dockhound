@@ -399,9 +399,10 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
-/WLL Tracker/discordroles.json
-/WLL Tracker/wll-roles-config.json
-/WLL Tracker/wll-roles-config_prod.json
-/WLL Tracker/wll-roles-config_test.json
-/WLL Tracker/roles.json
-/WLL Tracker/appsettings.json
+/Dockhound/discordroles.json
+/Dockhound/wll-roles-config.json
+/Dockhound/wll-roles-config_prod.json
+/Dockhound/wll-roles-config_test.json
+/Dockhound/roles.json
+/Dockhound/appsettings.json
+/Dockhound/appsettings_hvl.json
