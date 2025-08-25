@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Dockhound.Modals
 {
-    public class VerifyDenyReasonModal : IModal
+    public class DenyReasonModal : IModal
     {
         public string Title => "Denial Reason";
 

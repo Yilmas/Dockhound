@@ -145,7 +145,7 @@ namespace Dockhound.Interactions
 
         // DENY REASON
         [ModalInteraction("verify_deny_reason:*:*")]
-        public async Task SubmitDenyReason(ulong userId, ulong messageId, VerifyDenyReasonModal modal)
+        public async Task SubmitDenyReason(ulong userId, ulong messageId, DenyReasonModal modal)
         {
             var guild = Context.Guild;
             if (guild is null)
