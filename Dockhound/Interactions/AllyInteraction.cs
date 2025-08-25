@@ -167,7 +167,7 @@ namespace Dockhound.Interactions
             // DM the user (best-effort)
             try
             {
-                await member.SendMessageAsync($"✅ You’ve been assigned the **Ally** role{(rolesToAssign.Count > 1 ? "s" : "")} for HvL. Welcome!");
+                await member.SendMessageAsync($"✅ You’ve been assigned the **Ally** role{(rolesToAssign.Count > 1 ? "s" : "")} in **{Context.Guild.Name}**. Welcome!");
             }
             catch
             {
@@ -260,7 +260,7 @@ namespace Dockhound.Interactions
             {
                 try
                 {
-                    await member.SendMessageAsync($"❌ Your ally request has been denied.\n**Reason:** {modal.Reason}");
+                    await member.SendMessageAsync($"❌ Your ally request has been denied in **{Context.Guild.Name}**.\n**Reason:** {modal.Reason}");
                 }
                 catch
                 {
