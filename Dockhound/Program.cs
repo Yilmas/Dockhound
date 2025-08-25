@@ -35,6 +35,7 @@ public class Program
         Console.WriteLine($"{DateTime.UtcNow:HH:mm:ss} [LOG] Starting Dockhound");
 
         _configuration = new ConfigurationBuilder()
+            .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
             .AddEnvironmentVariables(prefix: "WLL_")
             .Build();
@@ -42,7 +43,7 @@ public class Program
         Console.WriteLine($"{DateTime.UtcNow:HH:mm:ss} [LOG]"+_configuration.GetSection("AppSettings").Value);
 
         var services = new ServiceCollection()
-            .Configure<AppSettings>(_configuration.GetSection("AppSettings"))
+            .Configure<AppSettings>(_configuration)
             .AddSingleton(_configuration)
             .AddSingleton(_socketConfig)
             .AddSingleton<HttpClient>()

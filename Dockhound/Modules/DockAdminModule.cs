@@ -1,6 +1,8 @@
 ﻿using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using Dockhound.Enums;
+using Dockhound.Extensions;
 using Dockhound.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
@@ -27,17 +29,20 @@ namespace Dockhound.Modules
                 private readonly IConfiguration _configuration;
                 private readonly AppSettings _settings;
 
+                public DockSettings(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings)
+                {
+                    _dbContext = dbContext;
+                    _httpClient = httpClient;
+                    _configuration = config;
+                    _settings = appSettings.Value;
+                }
+
                 [RequireUserPermission(GuildPermission.Administrator)]
                 [SlashCommand("view", "Displays current app settings")]
                 public async Task GetAppSettings()
                 {
-                    var values = _configuration
-                        .AsEnumerable()
-                        .Where(kv => kv.Value != null) // skip nulls
-                        .ToDictionary(kv => kv.Key, kv => kv.Value);
-
                     string json = System.Text.Json.JsonSerializer.Serialize(
-                        values,
+                        _settings,
                         new System.Text.Json.JsonSerializerOptions { WriteIndented = true }
                     );
 
@@ -88,98 +93,152 @@ namespace Dockhound.Modules
                     await RespondAsync(embed: embed);
                 }
 
-                [RequireUserPermission(GuildPermission.Administrator)]
-                [SlashCommand("applicant_button", "Create Button for Applicants to use")]
-                public async Task ApplicantButton()
-                {
-                    var button = new ComponentBuilder()
-                        .WithButton("Assign Applicant", $"assign_applicant");
+                //[RequireUserPermission(GuildPermission.Administrator)]
+                //[SlashCommand("applicant_button", "Create Button for Applicants to use")]
+                //public async Task ApplicantButton()
+                //{
+                //    var button = new ComponentBuilder()
+                //        .WithButton("Assign Applicant", $"assign_applicant");
 
-                    await RespondAsync(
-                        text: "\u200B",
-                        components: button.Build()
-                    );
-                }
+                //    await RespondAsync(
+                //        text: "\u200B",
+                //        components: button.Build()
+                //    );
+                //}
 
                 [RequireUserPermission(GuildPermission.Administrator)]
-                [SlashCommand("restrict", "Toggles restriction for verifications")]
-                public async Task RestrictToggle()
+                [SlashCommand("restrict", "Set the channel’s access mode")]
+                public async Task Restrict([Summary("setting", "Restricted / MembersOnly / Open")] AccessRestriction accessLevel)
                 {
                     await DeferAsync(ephemeral: true);
 
-                    var channel = Context.Channel as SocketTextChannel;
-                    if (channel == null)
+                    if (Context.Channel is not SocketTextChannel channel)
                     {
                         await FollowupAsync("This command can only be used in text channels.", ephemeral: true);
                         return;
                     }
 
-                    if (_settings.Verify.RestrictedAccess.Whitelist == null)
+                    var membersOnlyRoles = _configuration["RESTRICT_MEMBERONLY_ROLES"].ParseRoleIds();
+                    var alwaysDenyRoles = _configuration["RESTRICT_ALWAYS_DENY_ROLES"].ParseRoleIds(); // NEW: multiple role IDs
+
+                    // Active allow list: Restricted has NO whitelist; MembersOnly allows configured roles EXCEPT always-deny
+                    var activeAllow = accessLevel == AccessRestriction.MembersOnly
+                        ? membersOnlyRoles.Except(alwaysDenyRoles).ToHashSet()
+                        : new HashSet<ulong>();
+
+                    // Helper: merge only the fields we manage (preserve others)
+                    static OverwritePermissions Merge(OverwritePermissions? current,
+                        PermValue? view = null, PermValue? send = null, PermValue? appCmds = null)
                     {
-                        await FollowupAsync("No whitelisted roles!", ephemeral: true);
-                        return;
+                        var c = current ?? new OverwritePermissions();
+                        return c.Modify(
+                            viewChannel: view ?? c.ViewChannel,
+                            sendMessages: send ?? c.SendMessages,
+                            useApplicationCommands: appCmds ?? c.UseApplicationCommands
+                        );
                     }
 
-                    var everyoneRole = Context.Guild.EveryoneRole;
-                    var currentOverwrite = channel.GetPermissionOverwrite(everyoneRole);
-                    bool isRestricted = currentOverwrite?.SendMessages == PermValue.Deny;
+                    var everyone = Context.Guild.EveryoneRole;
 
-                    if (!isRestricted)
+                    // @everyone: View always allowed; Send/AppCmd depends on mode
+                    var everyoneSend = accessLevel == AccessRestriction.Open ? PermValue.Allow : PermValue.Deny;
+                    var mergedEveryone = Merge(channel.GetPermissionOverwrite(everyone),
+                                               view: PermValue.Allow, send: everyoneSend, appCmds: everyoneSend);
+                    await channel.AddPermissionOverwriteAsync(everyone, mergedEveryone);
+
+                    // We only manage overwrites for roles in our config lists; leave all other roles untouched
+                    var managedRoleIds = new HashSet<ulong>(membersOnlyRoles.Concat(alwaysDenyRoles));
+
+                    foreach (var roleId in managedRoleIds)
                     {
-                        // Restricting...
-                        await channel.AddPermissionOverwriteAsync(everyoneRole, new OverwritePermissions(
-                            viewChannel: PermValue.Allow,
-                            sendMessages: PermValue.Deny,
-                            useApplicationCommands: PermValue.Deny));
+                        var role = Context.Guild.GetRole(roleId);
+                        if (role is null) continue;
 
-                        foreach (var roleId in _settings.Verify.RestrictedAccess.Whitelist)
+                        var cur = channel.GetPermissionOverwrite(role);
+
+                        // Always-deny roles: hard deny View/Send/AppCmds in ALL modes
+                        if (alwaysDenyRoles.Contains(roleId))
                         {
-                            var role = Context.Guild.GetRole(roleId);
-                            if (role != null)
-                            {
-                                await channel.AddPermissionOverwriteAsync(role, new OverwritePermissions(
-                                    sendMessages: PermValue.Allow,
-                                    useApplicationCommands: PermValue.Allow));
-                            }
+                            var merged = Merge(cur, view: PermValue.Deny, send: PermValue.Deny, appCmds: PermValue.Deny);
+                            await channel.AddPermissionOverwriteAsync(role, merged);
+                            continue;
                         }
 
-                        var restrictionMessage = await channel.SendMessageAsync("## 🔒 Pre-Verification for the upcoming war is ONLY open for Regiment personnel 🔒\nNon-Regiment can verify 1 hour after war start.");
-                        AppSettingsService.UpdateRestrictedAccess(channel.Id, restrictionMessage.Id);
+                        // MembersOnly: allow Send/AppCmds for active roles; otherwise revert those fields to Inherit
+                        if (accessLevel == AccessRestriction.MembersOnly && activeAllow.Contains(roleId))
+                        {
+                            var merged = Merge(cur, send: PermValue.Allow, appCmds: PermValue.Allow);
+                            await channel.AddPermissionOverwriteAsync(role, merged);
+                        }
+                        else
+                        {
+                            if (cur.HasValue)
+                            {
+                                var merged = Merge(cur, send: PermValue.Inherit, appCmds: PermValue.Inherit);
+                                await channel.AddPermissionOverwriteAsync(role, merged);
+                            }
+                        }
+                    }
 
-                        await FollowupAsync("Restrictions applied.", ephemeral: true);
+                    // ---------- Banner handling ----------
+                    string? bannerContent = accessLevel switch
+                    {
+                        AccessRestriction.Restricted =>
+                            "## 🔒 Verification is **Restricted**\nNo verification is allowed at this time!",
+                        AccessRestriction.MembersOnly =>
+                            "## :warning: Pre-Verification is set to **Members Only**\nOnly HvL regiment members can verify.",
+                        AccessRestriction.Open => null
+                    };
+
+                    // Reuse the same stored message ID for both Restricted/MembersOnly
+                    var storedMsgId = _settings.Verify.RestrictedAccess?.ChannelId;
+                    if (bannerContent is not null)
+                    {
+                        IUserMessage? banner = null;
+                        if (storedMsgId.HasValue)
+                        {
+                            try { banner = await channel.GetMessageAsync(storedMsgId.Value) as IUserMessage; } catch { /* ignore */ }
+                        }
+
+                        if (banner is null)
+                        {
+                            banner = await channel.SendMessageAsync(bannerContent);
+                            AppSettingsService.UpdateRestrictedAccess(channel.Id, banner.Id);
+                        }
+                        else
+                        {
+                            await banner.ModifyAsync(m => m.Content = bannerContent);
+                            AppSettingsService.UpdateRestrictedAccess(channel.Id, banner.Id);
+                        }
                     }
                     else
                     {
-                        // Unrestricting...
-                        await channel.AddPermissionOverwriteAsync(everyoneRole, new OverwritePermissions(
-                            viewChannel: PermValue.Allow,
-                            sendMessages: PermValue.Allow,
-                            useApplicationCommands: PermValue.Allow));
-
-                        foreach (var roleId in _settings.Verify.RestrictedAccess.Whitelist)
-                        {
-                            var role = Context.Guild.GetRole(roleId);
-                            if (role != null)
-                            {
-                                await channel.RemovePermissionOverwriteAsync(role);
-                            }
-                        }
-
-                        var msgId = _settings.Verify.RestrictedAccess.ChannelId;
-                        if (msgId != null)
+                        if (storedMsgId.HasValue)
                         {
                             try
                             {
-                                var msg = await channel.GetMessageAsync(msgId.Value);
-                                await msg.DeleteAsync();
+                                if (await channel.GetMessageAsync(storedMsgId.Value) is IUserMessage toDelete)
+                                    await toDelete.DeleteAsync();
                             }
-                            catch { /* silently ignore errors */ }
-
-                            AppSettingsService.UpdateRestrictedAccess();
+                            catch { /* ignore */ }
+                            AppSettingsService.UpdateRestrictedAccess(); // clear stored state
                         }
-
-                        await FollowupAsync("Restrictions removed.", ephemeral: true);
                     }
+                    // ---------- end banner handling ----------
+
+                    await FollowupAsync(
+                        accessLevel switch
+                        {
+                            AccessRestriction.Open =>
+                                "Channel mode set to **Open**. Everyone can send messages and use application commands (banner removed).",
+                            AccessRestriction.MembersOnly =>
+                                $"Channel mode set to **MembersOnly**. Only configured roles can send messages and use application commands ({activeAllow.Count} role(s)).",
+                            AccessRestriction.Restricted =>
+                                "Channel mode set to **Restricted**. Send messages and application commands are disabled for everyone (view remains allowed).",
+                            _ => $"Channel mode set to **{accessLevel}**."
+                        },
+                        ephemeral: true
+                    );
                 }
 
             }

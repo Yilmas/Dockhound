@@ -20,8 +20,7 @@ namespace Dockhound.Models
                 throw new FileNotFoundException("Configuration file not found.", ConfigPath);
 
             var json = File.ReadAllText(ConfigPath);
-            var root = JsonConvert.DeserializeObject<RootConfig>(json);
-            var settings = root?.AppSettings ?? throw new Exception("AppSettings section is missing");
+            var settings = JsonConvert.DeserializeObject<AppSettings>(json);
 
             if (settings == null)
                 throw new Exception("Failed to deserialize appsettings.json");
