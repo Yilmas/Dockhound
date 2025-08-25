@@ -642,9 +642,15 @@ public class InteractionHandler
                 link = $"https://discord.com/channels/{guildChannel.GuildId}/{channel.Id}/{message.Id}";
             }
 
+            string content = string.IsNullOrWhiteSpace(message.Content)
+                ? "\u200B"
+                : (message.Content.Length > 500
+                    ? message.Content.Substring(0, 500) + "…"
+                    : message.Content);
+
             var embed = new EmbedBuilder()
                 .WithAuthor(message.Author)
-                .WithDescription($"{(message.Content.Length > 0 ? message.Content : "\u200B")}\n\n[Jump to message]({link})")
+                .WithDescription($"{content}\n\n[Jump to message]({link})")
                 .WithTimestamp(message.Timestamp)
                 .Build();
 
