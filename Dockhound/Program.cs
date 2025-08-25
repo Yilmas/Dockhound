@@ -22,12 +22,23 @@ public class Program
 
     private static readonly DiscordSocketConfig _socketConfig = new()
     {
-        GatewayIntents = GatewayIntents.AllUnprivileged | GatewayIntents.MessageContent
+        GatewayIntents = GatewayIntents.Guilds
+                        | GatewayIntents.GuildMembers 
+                        | GatewayIntents.GuildMessages 
+                        | GatewayIntents.GuildMessageReactions 
+                        | GatewayIntents.DirectMessages 
+                        | GatewayIntents.MessageContent,
+        MessageCacheSize = 100,
+        AlwaysDownloadUsers = false,
+        DefaultRetryMode = RetryMode.RetryRatelimit
+        //GatewayIntents.AllUnprivileged | GatewayIntents.MessageContent
     };
 
     private static readonly InteractionServiceConfig _interactionServiceConfig = new()
     {
-        //
+        DefaultRunMode = RunMode.Async,
+        UseCompiledLambda = true,
+        ThrowOnError = false
     };
     
     public static async Task Main()
@@ -50,14 +61,7 @@ public class Program
             .AddDbContext<WllTrackerContext>(options => options.UseSqlServer(_configuration["DBCONN"])) 
             .AddSingleton<DiscordSocketClient>()
             .AddSingleton(x => new InteractionService(x.GetRequiredService<DiscordSocketClient>(), _interactionServiceConfig))
-            .AddSingleton<InteractionHandler>()
-            .AddSingleton<TrackerModule>()
-            .AddSingleton<TrackerModule.TrackerSetup>()
-            .AddSingleton<VerificationModule>()
-            .AddSingleton<VerificationModule.VerifySetup>()
-            .AddSingleton<DockAdminModule>()
-            .AddSingleton<DockAdminModule.DockAdminSetup>()
-            .AddSingleton<DockAdminModule.DockAdminSetup.VerifyAdminSetup>();
+            .AddSingleton<InteractionHandler>();
 
         bool enableTelemetry = !string.IsNullOrEmpty(_configuration["APPINSIGHTS_CONN"]);
 
