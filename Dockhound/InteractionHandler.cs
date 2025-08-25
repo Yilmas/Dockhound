@@ -1,6 +1,10 @@
 ﻿using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using Dockhound.Enums;
+using Dockhound.Logs;
+using Dockhound.Modals;
+using Dockhound.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -14,10 +18,7 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Xml.XPath;
-using Dockhound.Enums;
-using Dockhound.Logs;
-using Dockhound.Modals;
-using Dockhound.Models;
+using static Microsoft.ApplicationInsights.MetricDimensionNames.TelemetryContext;
 using static Microsoft.AspNetCore.Hosting.Internal.HostingApplication;
 
 namespace Dockhound;
@@ -54,6 +55,7 @@ public class InteractionHandler
         _client.SelectMenuExecuted += SelectMenuExecuted;
         _client.ModalSubmitted += ModalSubmitted;
         _client.ButtonExecuted += ButtonExecuted;
+        _client.ReactionAdded += OnReactionAddedAsync;
     }
 
     private Task LogAsync(LogMessage log)
@@ -414,6 +416,10 @@ public class InteractionHandler
 
             await arg.FollowupAsync($"✅ Assigned **Applicant** to {guildUser.Mention}. Created applicant thread: {thread.Mention}.", ephemeral: true);
         }
+        if(arg.Data.CustomId is "btn-remove-bookmark")
+        {
+            await arg.Message.DeleteAsync();
+        }
     }
 
     public async Task ModalSubmitted(SocketModal arg)
@@ -615,5 +621,38 @@ public class InteractionHandler
             }
         }
 
+    }
+
+    private async Task OnReactionAddedAsync(Cacheable<IUserMessage, ulong> cacheable, Cacheable<IMessageChannel, ulong> cachechannel, SocketReaction reaction)
+    {
+        if(reaction.UserId == _client.CurrentUser.Id)
+            return;
+
+
+        if (reaction.Emote.Name == "🔖" || (reaction.Emote is Emote emote && emote.Name == "🔖"))
+        {
+            string link = string.Empty;
+            var message = await cacheable.GetOrDownloadAsync();
+            var channel = await cachechannel.GetOrDownloadAsync();
+
+            var user = reaction.User.IsSpecified ? reaction.User.Value : await reaction.Channel.GetUserAsync(reaction.UserId);
+
+            if (channel is IGuildChannel guildChannel)
+            {
+                link = $"https://discord.com/channels/{guildChannel.GuildId}/{channel.Id}/{message.Id}";
+            }
+
+            var embed = new EmbedBuilder()
+                .WithAuthor(message.Author)
+                .WithDescription($"{(message.Content.Length > 0 ? message.Content : "\u200B")}\n\n[Jump to message]({link})")
+                .WithTimestamp(message.Timestamp)
+                .Build();
+
+
+            var button = new ComponentBuilder()
+                .WithButton("❌", $"btn-remove-bookmark", ButtonStyle.Secondary);
+
+            await user.SendMessageAsync(embed: embed, components: button.Build());
+        }
     }
 }

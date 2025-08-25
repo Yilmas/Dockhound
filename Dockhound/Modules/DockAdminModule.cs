@@ -1,14 +1,15 @@
 ﻿using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using Dockhound.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Dockhound.Models;
 
 namespace Dockhound.Modules
 {
@@ -18,6 +19,38 @@ namespace Dockhound.Modules
         [Group("dockadmin", "Root command of Dockhound Admin")]
         public class DockAdminSetup : InteractionModuleBase<SocketInteractionContext>
         {
+            [Group("settings", "Settings for Dockhound")]
+            public class DockSettings : InteractionModuleBase<SocketInteractionContext>
+            {
+                private readonly WllTrackerContext _dbContext;
+                private readonly HttpClient _httpClient;
+                private readonly IConfiguration _configuration;
+                private readonly AppSettings _settings;
+
+                [RequireUserPermission(GuildPermission.Administrator)]
+                [SlashCommand("view", "Displays current app settings")]
+                public async Task GetAppSettings()
+                {
+                    var values = _configuration
+                        .AsEnumerable()
+                        .Where(kv => kv.Value != null) // skip nulls
+                        .ToDictionary(kv => kv.Key, kv => kv.Value);
+
+                    string json = System.Text.Json.JsonSerializer.Serialize(
+                        values,
+                        new System.Text.Json.JsonSerializerOptions { WriteIndented = true }
+                    );
+
+                    var embed = new EmbedBuilder()
+                        .WithTitle("App Settings")
+                        .WithDescription($"```\n{json}\n```")
+                        .WithColor(Color.Blue)
+                        .Build();
+
+                    await RespondAsync(embed: embed, ephemeral: true);
+                }
+            }
+
             [Group("verify", "Admin root for Verify Module")]
             public class VerifyAdminSetup : InteractionModuleBase<SocketInteractionContext>
             {
@@ -110,7 +143,7 @@ namespace Dockhound.Modules
                             }
                         }
 
-                        var restrictionMessage = await channel.SendMessageAsync("## 🔒 Pre-Verification for the upcoming war is ONLY open for WLL personnel 🔒\nNon-WLL can verify 1 hour after war start.");
+                        var restrictionMessage = await channel.SendMessageAsync("## 🔒 Pre-Verification for the upcoming war is ONLY open for Regiment personnel 🔒\nNon-Regiment can verify 1 hour after war start.");
                         AppSettingsService.UpdateRestrictedAccess(channel.Id, restrictionMessage.Id);
 
                         await FollowupAsync("Restrictions applied.", ephemeral: true);
