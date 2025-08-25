@@ -404,5 +404,6 @@ FodyWeavers.xsd
 /Dockhound/wll-roles-config_prod.json
 /Dockhound/wll-roles-config_test.json
 /Dockhound/roles.json
+/Dockhound/roles_hvl.json
 /Dockhound/appsettings.json
 /Dockhound/appsettings_hvl.json
