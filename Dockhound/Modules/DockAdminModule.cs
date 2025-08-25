@@ -3,6 +3,7 @@ using Discord.Interactions;
 using Discord.WebSocket;
 using Dockhound.Enums;
 using Dockhound.Extensions;
+using Dockhound.Logs;
 using Dockhound.Models;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
@@ -53,6 +54,41 @@ namespace Dockhound.Modules
                         .Build();
 
                     await RespondAsync(embed: embed, ephemeral: true);
+                }
+
+
+                [RequireUserPermission(GuildPermission.ViewAuditLog | GuildPermission.ManageMessages)]
+                [SlashCommand("log", "Display audit log for the bot.")]
+                public async Task TrackerLog(string query = "all", DateTime? startDate = null, DateTime? endDate = null)
+                {
+
+                    var lookup = await LogFilter.LookupLogEventsAsync(_dbContext, query, startDate, endDate);
+
+                    var memoryStream = LogFilter.ConvertToMemoryStream(lookup);
+
+                    string start = startDate?.ToString("yyyyMMdd_HHmmss") ?? "start";
+                    string end = endDate?.ToString("yyyyMMdd_HHmmss") ?? "now";
+
+                    await RespondWithFileAsync(memoryStream, $"logs_{start}_to_{end}.json", "Here are the filtered log entries.", ephemeral: true);
+
+                    try
+                    {
+                        var msg = await GetOriginalResponseAsync();
+
+                        var log = new LogEvent(
+                            eventName: "Log Retrieval",
+                            messageId: msg.Id,
+                            username: Context.User.Username,
+                            userId: Context.User.Id
+                        );
+
+                        _dbContext.LogEvents.Add(log);
+                        await _dbContext.SaveChangesAsync();
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
+                    }
                 }
             }
 
