@@ -1,8 +1,8 @@
 services:
-  wlltracker:
-    #image: wlltracker:dev
+  dockhound:
+    #image: dockhound:dev
     restart: unless-stopped
-    build: WLL Tracker/
+    build: Dockhound/
     environment:
       - WLL_token=${WLL_token}
   grafana:
@@ -12,6 +12,6 @@ services:
     ports:
       - '3000:3000'
     volumes:
-      - grafana-storage:/WLL Grafana
+      - grafana-storage:/Grafana
 volumes:
   grafana-storage: {}

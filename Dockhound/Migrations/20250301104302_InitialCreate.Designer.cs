@@ -3,17 +3,20 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using WLL_Tracker.Models;
+using Dockhound.Models;
 
 #nullable disable
 
-namespace WLL_Tracker.Migrations
+namespace Dockhound.Migrations
 {
     [DbContext(typeof(WllTrackerContext))]
-    partial class WllTrackerContextModelSnapshot : ModelSnapshot
+    [Migration("20250301104302_InitialCreate")]
+    partial class InitialCreate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -22,7 +25,7 @@ namespace WLL_Tracker.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("WLL_Tracker.Logs.LogError", b =>
+            modelBuilder.Entity("Dockhound.Logs.LogError", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -57,7 +60,7 @@ namespace WLL_Tracker.Migrations
                     b.ToTable("LogErrors");
                 });
 
-            modelBuilder.Entity("WLL_Tracker.Logs.LogEvent", b =>
+            modelBuilder.Entity("Dockhound.Logs.LogEvent", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()

@@ -5,17 +5,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using WLL_Tracker.Enums;
+using Dockhound.Enums;
 using System.Reflection.Emit;
 using Discord.Rest;
-using WLL_Tracker.Extensions;
-using WLL_Tracker.Logs;
+using Dockhound.Extensions;
+using Dockhound.Logs;
 using System.IO;
 using System.Collections;
 using System.Threading.Channels;
-using WLL_Tracker.Models;
+using Dockhound.Models;
 
-namespace WLL_Tracker.Modules;
+namespace Dockhound.Modules;
 
 public class TrackerModule : InteractionModuleBase<SocketInteractionContext>
 {

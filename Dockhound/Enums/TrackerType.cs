@@ -4,11 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace WLL_Tracker.Enums
+namespace Dockhound.Enums;
+
+public enum TrackerType
 {
-    public enum EnvironmentState
-    {
-        Development,
-        Production
-    }
+    Container
 }
+

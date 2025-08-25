@@ -6,9 +6,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using WLL_Tracker.Enums;
+using Dockhound.Enums;
 
-namespace WLL_Tracker.Models
+namespace Dockhound.Models
 {
     public static class AppSettingsService
     {

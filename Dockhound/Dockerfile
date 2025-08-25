@@ -12,4 +12,4 @@ RUN dotnet publish -o out
 FROM mcr.microsoft.com/dotnet/runtime:8.0
 WORKDIR /App
 COPY --from=build /App/out .
-ENTRYPOINT ["dotnet", "WLL Tracker.dll"]
+ENTRYPOINT ["dotnet", "Dockhound.dll"]

@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
-using WLL_Tracker.Logs;
+using Dockhound.Logs;
 
-namespace WLL_Tracker.Models;
+namespace Dockhound.Models;
 
 public partial class WllTrackerContext : DbContext
 {

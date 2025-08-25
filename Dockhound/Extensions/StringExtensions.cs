@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace WLL_Tracker.Extensions
+namespace Dockhound.Extensions
 {
     public static class StringExtensions
     {

@@ -7,7 +7,7 @@ using Discord;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace WLL_Tracker.Models
+namespace Dockhound.Models
 {
     public class DiscordRoles
     {

@@ -8,11 +8,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using System.Diagnostics;
-using WLL_Tracker.Logs;
-using WLL_Tracker.Models;
-using WLL_Tracker.Modules;
+using Dockhound.Logs;
+using Dockhound.Models;
+using Dockhound.Modules;
 
-namespace WLL_Tracker;
+namespace Dockhound;
 
 public class Program
 {

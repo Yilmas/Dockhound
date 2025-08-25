@@ -8,9 +8,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using WLL_Tracker.Models;
+using Dockhound.Models;
 
-namespace WLL_Tracker.Modules
+namespace Dockhound.Modules
 {
     public class DockAdminModule : InteractionModuleBase<SocketInteractionContext>
     {

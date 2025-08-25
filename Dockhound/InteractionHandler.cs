@@ -14,13 +14,13 @@ using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Xml.XPath;
-using WLL_Tracker.Enums;
-using WLL_Tracker.Logs;
-using WLL_Tracker.Modals;
-using WLL_Tracker.Models;
+using Dockhound.Enums;
+using Dockhound.Logs;
+using Dockhound.Modals;
+using Dockhound.Models;
 using static Microsoft.AspNetCore.Hosting.Internal.HostingApplication;
 
-namespace WLL_Tracker;
+namespace Dockhound;
 
 
 public class InteractionHandler

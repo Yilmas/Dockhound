@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Discord;
 using Discord.Interactions;
 
-namespace WLL_Tracker.Modals
+namespace Dockhound.Modals
 {
     /// <summary>
     /// NOT IN USE, WILL NEED REDESIGN OF INTERACTION HANDLER

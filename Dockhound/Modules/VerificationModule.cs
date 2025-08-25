@@ -5,25 +5,25 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using WLL_Tracker.Enums;
+using Dockhound.Enums;
 using System.Reflection.Emit;
 using Discord.Rest;
-using WLL_Tracker.Extensions;
-using WLL_Tracker.Logs;
+using Dockhound.Extensions;
+using Dockhound.Logs;
 using System.IO;
 using System.Collections;
 using System.Threading.Channels;
 using Discord.WebSocket;
 using Microsoft.VisualBasic;
-using WLL_Tracker.Models;
+using Dockhound.Models;
 using Microsoft.Extensions.Configuration;
-using WLL_Tracker.Modals;
+using Dockhound.Modals;
 using static Microsoft.ApplicationInsights.MetricDimensionNames.TelemetryContext;
 using Microsoft.Extensions.Options;
 using System.Runtime;
 using Microsoft.IdentityModel.Tokens;
 
-namespace WLL_Tracker.Modules;
+namespace Dockhound.Modules;
 
 public class VerificationModule : InteractionModuleBase<SocketInteractionContext>
 {
