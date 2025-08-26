@@ -45,7 +45,7 @@ namespace Dockhound.Logs
 
         private EnvironmentState GetCurrentEnvironment()
         {
-            string? env = Environment.GetEnvironmentVariable("WLL_ENVIRONMENT");
+            string? env = Environment.GetEnvironmentVariable("DOCK_ENVIRONMENT");
 
             if (string.IsNullOrEmpty(env))
             {

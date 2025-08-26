@@ -35,4 +35,10 @@ namespace Dockhound.Extensions
         public static HashSet<ulong> GetRoleIds(this IConfiguration config, string key)
             => config[key].ParseRoleIds();
     }
+
+    public static class CollectionExtensions
+    {
+        public static HashSet<ulong> ToSet(this IEnumerable<ulong>? src) =>
+            src is null ? new HashSet<ulong>() : new HashSet<ulong>(src);
+    }
 }

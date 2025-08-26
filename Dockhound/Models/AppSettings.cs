@@ -6,10 +6,10 @@ using System.Threading.Tasks;
 
 namespace Dockhound.Models
 {
-    public class RootConfig
-    {
-        public AppSettings AppSettings { get; set; }
-    }
+    //public class RootConfig
+    //{
+    //    public AppSettings AppSettings { get; set; }
+    //}
 
     public class AppSettings
     {
@@ -24,11 +24,15 @@ namespace Dockhound.Models
         public ulong NotificationChannelId { get; set; }
         public ulong ColonialSecureChannelId { get; set; }
         public ulong WardenSecureChannelId { get; set; }
+        public List<ulong>? RecruitAssignerRoles { get; set; }
+        public List<ulong>? AllyAssignerRoles { get; set; }
         public RestrictedAccessSettings RestrictedAccess { get; set; }
     }
 
     public class RestrictedAccessSettings
     {
+        public List<ulong>? AlwaysRestrictRoles { get; set; }
+        public List<ulong>? MemberOnlyRoles { get; set; }
         public ulong? ChannelId { get; set; }
         public ulong? MessageId { get; set; }
         public List<ulong>? Whitelist { get; set; }
@@ -38,7 +42,7 @@ namespace Dockhound.Models
     {
         public ulong ForumChannelId { get; set; }
         public ulong PendingTagChannelId { get; set; }
-        public List<ulong> AllowedAssignerRoleIds { get; set; }
+        public List<ulong>? AllowedAssignerRoleIds { get; set; }
     }
 
 }

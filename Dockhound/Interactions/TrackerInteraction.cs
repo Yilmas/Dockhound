@@ -32,9 +32,6 @@ namespace Dockhound.Interactions
             _settings = appSettings.Value;
         }
 
-        //[SlashCommand("tracker-ping", "Internal ping")]
-        //public async Task TrackerPing() => await RespondAsync("pong", ephemeral: true);
-
         //////////////////////////////
         //                          //
         // CONTAINER INTERACTIONS   //
@@ -123,8 +120,6 @@ namespace Dockhound.Interactions
             {
                 Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
             }
-
-            await RespondAsync("Updated!", ephemeral: true);
         }
 
         //////////////////////////////
@@ -173,10 +168,7 @@ namespace Dockhound.Interactions
             var socketModal = (Discord.WebSocket.SocketModal)Context.Interaction;
             var msg = socketModal.Message as IUserMessage;
             if (msg is null)
-            {
-                //await RespondAsync("Could not find the original message to update.", ephemeral: true);
                 return;
-            }
 
             var eb = msg.Embeds.First().ToEmbedBuilder();
             var existing = eb.Description ?? string.Empty;
@@ -194,10 +186,7 @@ namespace Dockhound.Interactions
 
             // If nothing actually changed, bail early
             if (string.Equals(currentCore, newCore, StringComparison.Ordinal))
-            {
-                //await RespondAsync("No changes.", ephemeral: true);
                 return;
-            }
 
             long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 

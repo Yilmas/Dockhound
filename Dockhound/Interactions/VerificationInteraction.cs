@@ -32,7 +32,7 @@ namespace Dockhound.Interactions
         }
 
         // APPROVE
-        [ComponentInteraction("approve_verification")]
+        [ComponentInteraction("approve-verification")]
         public async Task ApproveVerification()
         {
             var comp = (SocketMessageComponent)Context.Interaction;
@@ -54,8 +54,8 @@ namespace Dockhound.Interactions
             if (user == null)
                 return;
 
-            _ = ulong.TryParse(_configuration["CHANNEL_VERIFY_NOTIFICATION"], out var notificationChannelId);
-            var notificationChannel = guild?.GetTextChannel(notificationChannelId);
+            //_ = ulong.TryParse(_configuration["CHANNEL_VERIFY_NOTIFICATION"], out var notificationChannelId);
+            var notificationChannel = guild?.GetTextChannel(_settings.Verify.NotificationChannelId);
 
             await DeferAsync(ephemeral: true);
 
@@ -79,9 +79,11 @@ namespace Dockhound.Interactions
                 var faction = factionField.Value?.ToString();
 
                 if (string.Equals(faction, "Colonial", StringComparison.OrdinalIgnoreCase))
-                    _ = ulong.TryParse(_configuration["CHANNEL_FACTION_COLONIAL_SECURE"], out factionSecureComms);
+                    factionSecureComms = _settings.Verify.ColonialSecureChannelId;
+                //_ = ulong.TryParse(_configuration["CHANNEL_FACTION_COLONIAL_SECURE"], out factionSecureComms);
                 else if (string.Equals(faction, "Warden", StringComparison.OrdinalIgnoreCase))
-                    _ = ulong.TryParse(_configuration["CHANNEL_FACTION_WARDEN_SECURE"], out factionSecureComms);
+                    factionSecureComms = _settings.Verify.WardenSecureChannelId;
+                //_ = ulong.TryParse(_configuration["CHANNEL_FACTION_WARDEN_SECURE"], out factionSecureComms);
 
                 var factionSecureChannel = guild?.GetTextChannel(factionSecureComms);
                 await user.SendMessageAsync(
@@ -122,7 +124,7 @@ namespace Dockhound.Interactions
         }
 
         // DENY
-        [ComponentInteraction("deny_verification")]
+        [ComponentInteraction("deny-verification")]
         public async Task DenyVerification()
         {
             var comp = (SocketMessageComponent)Context.Interaction;
@@ -136,15 +138,15 @@ namespace Dockhound.Interactions
                 return;
 
             // Pass both the target user and the review-message ID into the modal CustomId
-            var modal = new ModalBuilder("Denial Reason", $"verify_deny_reason:{userId}:{comp.Message.Id}")
-                .AddTextInput("Why are you denying this?", "deny_reason_text", TextInputStyle.Paragraph, maxLength: 500,
+            var modal = new ModalBuilder("Denial Reason", $"verify-deny-reason:{userId}:{comp.Message.Id}")
+                .AddTextInput("Why are you denying this?", "deny-reason-text", TextInputStyle.Paragraph, maxLength: 500,
                               placeholder: "Enter the reason for denial...");
 
             await RespondWithModalAsync(modal.Build());
         }
 
         // DENY REASON
-        [ModalInteraction("verify_deny_reason:*:*")]
+        [ModalInteraction("verify-deny-reason:*:*")]
         public async Task SubmitDenyReason(ulong userId, ulong messageId, DenyReasonModal modal)
         {
             var guild = Context.Guild;
@@ -156,10 +158,10 @@ namespace Dockhound.Interactions
             if (user is null)
                 return;
 
-            if (!ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out var reviewChannelId))
-                return;
+            //if (!ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out var reviewChannelId))
+            //    return;
 
-            var verificationChannel = guild.GetTextChannel(reviewChannelId);
+            var verificationChannel = guild.GetTextChannel(_settings.Verify.ReviewChannelId);
             if (verificationChannel is null)
                 return;
 

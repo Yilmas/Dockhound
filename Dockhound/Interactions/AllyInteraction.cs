@@ -41,12 +41,7 @@ namespace Dockhound.Interactions
                 return;
 
             // --- Permission gate: self OR has any allowed role ---
-            var allowedRoleIds = (_configuration["ALLOWED_ALLY_ASSIGNER_ROLES"] ?? "")
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                .Select(s => ulong.TryParse(s, out var id) ? id : (ulong?)null)
-                .Where(id => id.HasValue)
-                .Select(id => id!.Value)
-                .ToHashSet();
+            var allowedRoleIds = _settings.Verify.AllyAssignerRoles?.ToHashSet() ?? new HashSet<ulong>();
 
             bool isSelf = acting.Id == target.Id;
             bool hasPrivilege = acting.Roles.Any(r => allowedRoleIds.Contains(r.Id));
@@ -58,10 +53,10 @@ namespace Dockhound.Interactions
             }
             // --- End permission gate ---
 
-            if (!ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out var reviewChannelId))
-                return;
+            //if (!ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out var reviewChannelId))
+            //    return;
 
-            var reviewChannel = guild.GetTextChannel(reviewChannelId);
+            var reviewChannel = guild.GetTextChannel(_settings.Verify.ReviewChannelId);
             if (reviewChannel is null)
                 return;
 
@@ -92,8 +87,8 @@ namespace Dockhound.Interactions
                 .WithFooter($"Requested by {acting.Username}");
 
             var components = new ComponentBuilder()
-                .WithButton("Approve", "ally_approve", ButtonStyle.Success)
-                .WithButton("Deny", "ally_deny", ButtonStyle.Danger)
+                .WithButton("Approve", "ally-approve", ButtonStyle.Success)
+                .WithButton("Deny", "ally-deny", ButtonStyle.Danger)
                 .Build();
 
             var msg = await reviewChannel.SendMessageAsync(embed: eb.Build(), components: components);
@@ -120,7 +115,7 @@ namespace Dockhound.Interactions
         }
 
         // APPROVE
-        [ComponentInteraction("ally_approve")]
+        [ComponentInteraction("ally-approve")]
         public async Task ApproveAlly()
         {
             var comp = (SocketMessageComponent)Context.Interaction;
@@ -196,7 +191,7 @@ namespace Dockhound.Interactions
         }
 
         // DENY
-        [ComponentInteraction("ally_deny")]
+        [ComponentInteraction("ally-deny")]
         public async Task DenyAlly()
         {
             var comp = (SocketMessageComponent)Context.Interaction;
@@ -209,15 +204,15 @@ namespace Dockhound.Interactions
             if (userIdField == null || !ulong.TryParse(userIdField.Value?.ToString(), out var userId))
                 return;
 
-            var modal = new ModalBuilder("Denial Reason", $"ally_deny_reason:{userId}:{comp.Message.Id}")
-                .AddTextInput("Why are you denying this?", "deny_reason_text", TextInputStyle.Paragraph, maxLength: 500,
+            var modal = new ModalBuilder("Denial Reason", $"ally-deny-reason:{userId}:{comp.Message.Id}")
+                .AddTextInput("Why are you denying this?", "deny-reason-text", TextInputStyle.Paragraph, maxLength: 500,
                               placeholder: "Enter the reason for denial...");
 
             await RespondWithModalAsync(modal.Build());
         }
 
         // DENY MODAL SUBMIT
-        [ModalInteraction("ally_deny_reason:*:*")]
+        [ModalInteraction("ally-deny-reason:*:*")]
         public async Task SubmitAllyDenyReason(ulong userId, ulong messageId, DenyReasonModal modal)
         {
             var guild = Context.Guild;
@@ -233,10 +228,10 @@ namespace Dockhound.Interactions
 
             if (reviewMessage == null)
             {
-                if (!ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out var reviewChannelId))
-                    return;
+                //if (!ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out var reviewChannelId))
+                //    return;
 
-                var reviewChannel = guild.GetTextChannel(reviewChannelId);
+                var reviewChannel = guild.GetTextChannel(_settings.Verify.ReviewChannelId);
                 reviewMessage = await reviewChannel?.GetMessageAsync(messageId) as IUserMessage;
             }
 

@@ -59,8 +59,8 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
             await DeferAsync(ephemeral: true);
 
             long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
-
-            ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out ulong reviewChannelId);
+            
+            var reviewChannelId = _settings.Verify.ReviewChannelId; //ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out ulong reviewChannelId);
 
             var reviewChannel = Context.Guild.GetTextChannel(reviewChannelId);
 
@@ -86,8 +86,8 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
                 .Build();
 
             var component = new ComponentBuilder()
-                .WithButton("Approve", "approve_verification", ButtonStyle.Success)
-                .WithButton("Deny", "deny_verification", ButtonStyle.Danger)
+                .WithButton("Approve", "approve-verification", ButtonStyle.Success)
+                .WithButton("Deny", "deny-verification", ButtonStyle.Danger)
                 .Build();
 
             await reviewChannel.SendFileAsync(stream, file.Filename, embed: embed, components: component);

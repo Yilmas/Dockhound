@@ -112,7 +112,7 @@ namespace Dockhound.Modules
                 [SlashCommand("info", "Provides information on the verification process.")]
                 public async Task VerifyInfo()
                 {
-                    string imageUrl = _configuration["VERIFY_IMAGEURL"];
+                    string imageUrl = _settings.Verify.ImageUrl; //_configuration["VERIFY_IMAGEURL"];
 
                     var embed = new EmbedBuilder()
                         .WithTitle("Looking to Verify?")
@@ -123,7 +123,7 @@ namespace Dockhound.Modules
                         .AddField("**How long will it take?**", "If you have given us the correct information, one of the officers will handle your request asap.", false)
                         .WithImageUrl(imageUrl)
                         .WithColor(Color.Gold)
-                        .WithFooter("Brought to you by WLL Cannonsmoke")
+                        .WithFooter("Brought to you by Dockhound")
                         .Build();
 
                     await RespondAsync(embed: embed);
@@ -154,8 +154,8 @@ namespace Dockhound.Modules
                         return;
                     }
 
-                    var membersOnlyRoles = _configuration["RESTRICT_MEMBERONLY_ROLES"].ParseRoleIds();
-                    var alwaysDenyRoles = _configuration["RESTRICT_ALWAYS_DENY_ROLES"].ParseRoleIds(); // NEW: multiple role IDs
+                    var membersOnlyRoles = _settings.Verify.RestrictedAccess.MemberOnlyRoles.ToSet(); //_configuration["RESTRICT_MEMBERONLY_ROLES"].ParseRoleIds();
+                    var alwaysDenyRoles = _settings.Verify.RestrictedAccess.AlwaysRestrictRoles.ToSet(); //_configuration["RESTRICT_ALWAYS_DENY_ROLES"].ParseRoleIds(); // NEW: multiple role IDs
 
                     // Active allow list: Restricted has NO whitelist; MembersOnly allows configured roles EXCEPT always-deny
                     var activeAllow = accessLevel == AccessRestriction.MembersOnly

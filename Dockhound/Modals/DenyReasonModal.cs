@@ -13,7 +13,7 @@ namespace Dockhound.Modals
         public string Title => "Denial Reason";
 
         [InputLabel("Why are you denying this?")]
-        [ModalTextInput("deny_reason_text", TextInputStyle.Paragraph, maxLength: 500, placeholder: "Enter the reason for denial...")]
+        [ModalTextInput("deny-reason-text", TextInputStyle.Paragraph, maxLength: 500, placeholder: "Enter the reason for denial...")]
         public string Reason { get; set; } = string.Empty;
     }
 }
