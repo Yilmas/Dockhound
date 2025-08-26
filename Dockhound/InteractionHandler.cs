@@ -319,7 +319,7 @@ public class InteractionHandler
                 if (srcEb.Color.HasValue)
                     eb.WithColor(srcEb.Color.Value);
 
-                // Copy up to 2 fields from the ORIGINAL embed (string values, has Inline)
+                // Copy up to 2 fields from the ORIGINAL embed
                 if (srcEmbed.Fields != null)
                 {
                     foreach (var f in srcEmbed.Fields.Take(2))
@@ -360,6 +360,24 @@ public class InteractionHandler
             catch
             {
                 // DMs might be closed
+            }
+
+            // Log request
+            try
+            {
+                var log = new LogEvent(
+                    eventName: "User Bookmarked a Message",
+                    messageId: messageId,
+                    username: user.Username,
+                    userId: user.Id,
+                    changes: $"User {user.Username} bookmarked {messageId}"
+                );
+                _dbContext.LogEvents.Add(log);
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ERROR] Failed to log ally request: {ex.Message}\n{ex.StackTrace}");
             }
         }
     }
