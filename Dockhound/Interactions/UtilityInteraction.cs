@@ -32,11 +32,39 @@ namespace Dockhound.Interactions
             _settings = appSettings.Value;
         }
 
-        [ComponentInteraction("btn-remove-bookmark")]
-        public async Task OpenCountModal()
+        [ComponentInteraction("btn-remove-bookmark:*:*:*:*")]
+        public async Task RemoveBookmark(ulong guildId, ulong channelId, ulong messageId, ulong userId)
         {
-            var comp = (Discord.WebSocket.SocketMessageComponent)Context.Interaction;
-            await comp.Message.DeleteAsync();
+            var comp = (SocketMessageComponent)Context.Interaction;
+
+            if (Context.User.Id != userId)
+                return;
+
+            // Try to remove the original reaction (guild messages only)
+            try
+            {
+                var chan = Context.Client.GetChannel(channelId) as ITextChannel
+                           ?? (Context.Client.GetGuild(guildId)?.GetTextChannel(channelId));
+
+                if (chan != null)
+                {
+                    if (await chan.GetMessageAsync(messageId) is IUserMessage src)
+                    {
+                        await src.RemoveReactionAsync(new Emoji("🔖"), userId);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WARN] Failed to remove bookmark reaction: {ex.Message}");
+            }
+
+            // Delete the DM message that contained the button
+            try
+            {
+                await comp.Message.DeleteAsync();
+            }
+            catch { /* ignore */ }
         }
     }
 }

@@ -65,7 +65,7 @@ public class InteractionHandler
     {
         await _client.SetActivityAsync(new Game("user requests", ActivityType.Listening));
 
-        if(AppSettingsService.GetCurrentEnvironment() == EnvironmentState.Development)
+        if (AppSettingsService.GetCurrentEnvironment() == EnvironmentState.Development)
         {
             await DeleteAllCommandsAsync();
         }
@@ -258,42 +258,112 @@ public class InteractionHandler
     //    }
     //}
 
+    private static string Trunc(string s, int max)
+    => string.IsNullOrEmpty(s) || s.Length <= max ? s : s.Substring(0, max - 1) + "…";
+
     private async Task OnReactionAddedAsync(Cacheable<IUserMessage, ulong> cacheable, Cacheable<IMessageChannel, ulong> cachechannel, SocketReaction reaction)
     {
-        if(reaction.UserId == _client.CurrentUser.Id)
-            return;
+        if (reaction.UserId == _client.CurrentUser.Id) return;
 
-
-        if (reaction.Emote.Name == "🔖" || (reaction.Emote is Emote emote && emote.Name == "🔖"))
+        if (reaction.Emote.Name == "🔖" || (reaction.Emote is Emote e && e.Name == "🔖"))
         {
-            string link = string.Empty;
             var message = await cacheable.GetOrDownloadAsync();
             var channel = await cachechannel.GetOrDownloadAsync();
-
             var user = reaction.User.IsSpecified ? reaction.User.Value : await reaction.Channel.GetUserAsync(reaction.UserId);
 
-            if (channel is IGuildChannel guildChannel)
+            // Jump link (guild only)
+            string link = "";
+            if (channel is IGuildChannel gch)
+                link = $"https://discord.com/channels/{gch.GuildId}/{channel.Id}/{message.Id}";
+
+            // Source embed (if any)
+            var srcEmbed = message.Embeds?.FirstOrDefault();
+            var srcEb = srcEmbed?.ToEmbedBuilder();
+
+            // Description prefers message content; else embed description; else ZWSP
+            string baseText = !string.IsNullOrWhiteSpace(message.Content)
+                ? Trunc(message.Content.Trim(), 1000)
+                : (!string.IsNullOrWhiteSpace(srcEb?.Description) ? Trunc(srcEb.Description, 1000) : "\u200B");
+
+            var eb = new EmbedBuilder()
+                .WithUrl(string.IsNullOrEmpty(link) ? null : link)
+                .WithAuthor(new EmbedAuthorBuilder()
+                    .WithName(message.Author.Username)
+                    .WithIconUrl((message.Author as IUser)?.GetAvatarUrl() ?? (message.Author as IUser)?.GetDefaultAvatarUrl()))
+                .WithDescription($"{baseText}\n\n[Jump to message]({(string.IsNullOrEmpty(link) ? "#" : link)})")
+                .WithTimestamp(message.Timestamp);
+
+            // Title ONLY when the original message had an embed
+            if (srcEmbed != null)
             {
-                link = $"https://discord.com/channels/{guildChannel.GuildId}/{channel.Id}/{message.Id}";
+                string title =
+                    !string.IsNullOrWhiteSpace(srcEb?.Title) ? Trunc(srcEb.Title, 256) :
+                    !string.IsNullOrWhiteSpace(message.Content) ? $"Bookmark: {Trunc(message.Content.Trim(), 80)}" :
+                    $"Bookmark from {message.Author.Username}";
+                eb.WithTitle(title);
             }
 
-            string content = string.IsNullOrWhiteSpace(message.Content)
-                ? "\u200B"
-                : (message.Content.Length > 500
-                    ? message.Content.Substring(0, 500) + "…"
-                    : message.Content);
+            if (srcEb != null)
+            {
+                // Thumbnail (prefer source thumbnail, else source author icon)
+                if (!string.IsNullOrWhiteSpace(srcEb.ThumbnailUrl))
+                    eb.WithThumbnailUrl(srcEb.ThumbnailUrl);
+                else if (srcEb.Author != null && !string.IsNullOrWhiteSpace(srcEb.Author.IconUrl))
+                    eb.WithThumbnailUrl(srcEb.Author.IconUrl);
 
-            var embed = new EmbedBuilder()
-                .WithAuthor(message.Author)
-                .WithDescription($"{content}\n\n[Jump to message]({link})")
-                .WithTimestamp(message.Timestamp)
+                // Image
+                if (!string.IsNullOrWhiteSpace(srcEb.ImageUrl))
+                    eb.WithImageUrl(srcEb.ImageUrl);
+
+                // Optional: keep color for a visual hint
+                if (srcEb.Color.HasValue)
+                    eb.WithColor(srcEb.Color.Value);
+
+                // Copy up to 2 fields from the ORIGINAL embed (string values, has Inline)
+                if (srcEmbed.Fields != null)
+                {
+                    foreach (var f in srcEmbed.Fields.Take(2))
+                    {
+                        var name = Trunc(f.Name ?? "Field", 256);
+                        var val = Trunc(f.Value ?? string.Empty, 1024);
+                        if (!string.IsNullOrWhiteSpace(val))
+                            eb.AddField(name, val, f.Inline);
+                    }
+                }
+            }
+
+            // If no image yet, attach first image attachment
+            if (eb.ImageUrl == null && message.Attachments?.Count > 0)
+            {
+                var img = message.Attachments.FirstOrDefault(a =>
+                    (a.ContentType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) ?? false) ||
+                    a.Filename.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
+                    a.Filename.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
+                    a.Filename.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+                    a.Filename.EndsWith(".gif", StringComparison.OrdinalIgnoreCase));
+                if (img != null) eb.WithImageUrl(img.Url);
+            }
+
+            var guildId = (channel as IGuildChannel)?.GuildId ?? 0;
+            var channelId = channel.Id;
+            var messageId = message.Id;
+            var userId = reaction.UserId;
+
+            var components = new ComponentBuilder()
+                .WithButton("❌", $"btn-remove-bookmark:{guildId}:{channelId}:{messageId}:{userId}", ButtonStyle.Secondary)
                 .Build();
 
-
-            var button = new ComponentBuilder()
-                .WithButton("❌", $"btn-remove-bookmark", ButtonStyle.Secondary);
-
-            await user.SendMessageAsync(embed: embed, components: button.Build());
+            try
+            {
+                await user.SendMessageAsync(embed: eb.Build(), components: components);
+            }
+            catch
+            {
+                // DMs might be closed
+            }
         }
     }
+
+
+
 }
