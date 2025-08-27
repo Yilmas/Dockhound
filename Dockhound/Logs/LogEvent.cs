@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Dockhound.Enums;
+using Dockhound.Models;
 
 namespace Dockhound.Logs
 {

@@ -17,3 +17,56 @@ Your friendly Companion Bot, for when you feel lonely and abandoned in the yard!
 ## WIP Features:
 - Multi-Server support
 - Facilitate all Container Colors
+
+## Notes
+- While DotEnv are available with prefix `DOCK_`, I recommend using appsettings.json
+
+### Sample AppSettings
+
+```json
+{
+  "Configuration": {
+    "DiscordToken": "DISCORD_TOKEN",
+    "DatabaseConnectionString": "SQL_DB_CONN",
+    "AppInsightsConnectionString": "APP_INSIGHT",
+    "Environment": "Development/Production"
+  },
+  "Verify": {
+    "ImageUrl": "URL_VERIFY_IMAGE",
+    "ReviewChannelId": CHANNEL_ID_ULONG,
+    "NotificationChannelId": CHANNEL_ID_ULONG,
+    "ColonialSecureChannelId": CHANNEL_ID_ULONG,
+    "WardenSecureChannelId": CHANNEL_ID_ULONG,
+    "RecruitAssignerRoles": [
+      ROLE_ID
+    ],
+    "AllyAssignerRoles": [
+      ROLE_ID
+    ],
+    "RestrictedAccess": {
+      "AlwaysRestrictRoles": [
+        ROLE_ID,
+        ROLE_ID
+      ],
+      "MemberOnlyRoles": [
+        ROLE_ID
+      ],
+      "ChannelId": CHANNEL_ID_ULONG,
+      "MessageId": MESSAGE_ID_ULONG,
+      "Whitelist": [
+        ROLE_ID
+      ]
+    }
+  },
+  "Applicant": {
+    "ForumChannelId": FORUM_CHANNEL_ID,
+    "PendingTagChannelId": CHANNEL_ID_ULONG,
+    "AllowedAssignerRoleIds": [
+      ROLE_ID,
+      ROLE_ID,
+      ROLE_ID
+    ]
+  }
+}
+
+```

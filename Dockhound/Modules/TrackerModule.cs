@@ -55,7 +55,7 @@ public class TrackerModule : InteractionModuleBase<SocketInteractionContext>
                     .AddField("Blue", 0, true)
                     .AddField("DarkBlue", 0, true)
                     .AddField("White", 0, true)
-                    .WithFooter("Brought to you by High Velocity Logistics");
+                    .WithFooter("Brought to you by Dockhound");
 
                 var builder = new ComponentBuilder()
                     .WithButton(label: "Edit Container Count", "btn-container-count", style: ButtonStyle.Secondary);
@@ -91,7 +91,8 @@ public class TrackerModule : InteractionModuleBase<SocketInteractionContext>
 
             var embed = new EmbedBuilder()
                 .WithTitle($"{title}")
-                .WithDescription("**Messages**\nWaiting for Squibbles\n\n_Last Updated by " + Context.User.Mention + " <t:" + seconds + ":R>_");
+                .WithDescription("**Messages**\nWaiting for Squibbles\n\n_Last Updated by " + Context.User.Mention + " <t:" + seconds + ":R>_")
+                .WithFooter("Brought to you by Dockhound");
 
             var builder = new ComponentBuilder()
                 .WithButton(label: "Update Board", "btn-whiteboard-update", style: ButtonStyle.Secondary);

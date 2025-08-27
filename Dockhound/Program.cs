@@ -56,19 +56,20 @@ public class Program
             .AddSingleton(_configuration)
             .AddSingleton(_socketConfig)
             .AddSingleton<HttpClient>()
-            .AddDbContext<WllTrackerContext>(options => options.UseSqlServer(_configuration["DBCONN"])) 
+            .AddDbContext<WllTrackerContext>(options => options.UseSqlServer(_configuration["Configuration:DatabaseConnectionString"])) 
+            .AddSingleton<IAppSettingsService, AppSettingsService>()
             .AddSingleton<DiscordSocketClient>()
             .AddSingleton(x => new InteractionService(x.GetRequiredService<DiscordSocketClient>(), _interactionServiceConfig))
             .AddSingleton<InteractionHandler>();
 
-        bool enableTelemetry = !string.IsNullOrEmpty(_configuration["APPINSIGHTS_CONN"]);
+        bool enableTelemetry = !string.IsNullOrEmpty(_configuration["Configuration:AppInsightsConnectionString"]);
 
         if (enableTelemetry)
         {
             services.AddSingleton<TelemetryConfiguration>(provider =>
             {
                 var config = TelemetryConfiguration.CreateDefault();
-                config.ConnectionString = _configuration["APPINSIGHTS_CONN"];
+                config.ConnectionString = _configuration["Configuration:AppInsightsConnectionString"];
                 return config;
             });
 
@@ -103,7 +104,7 @@ public class Program
 
         await _services.GetRequiredService<InteractionHandler>().InitializeAsync();
         
-        if (_configuration["TOKEN"] != null)
+        if (_configuration["Configuration:DiscordToken"] != null)
             Console.WriteLine($"{DateTime.UtcNow:HH:mm:ss} [LOG] Token Acquired!");
         else
         {
@@ -111,7 +112,7 @@ public class Program
             Environment.Exit(1);
         }
 
-        await client.LoginAsync(TokenType.Bot, _configuration["TOKEN"]);
+        await client.LoginAsync(TokenType.Bot, _configuration["Configuration:DiscordToken"]);
         await client.StartAsync();
 
         _ = TrackPerformanceMetrics();

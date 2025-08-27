@@ -65,7 +65,7 @@ public class InteractionHandler
     {
         await _client.SetActivityAsync(new Game("user requests", ActivityType.Listening));
 
-        if (AppSettingsService.GetCurrentEnvironment() == EnvironmentState.Development)
+        if (_settings.Configuration.Environment == EnvironmentState.Development)
         {
             await DeleteAllCommandsAsync();
         }
@@ -377,7 +377,7 @@ public class InteractionHandler
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ERROR] Failed to log ally request: {ex.Message}\n{ex.StackTrace}");
+                Console.WriteLine($"[ERROR] Failed to log bookmark request: {ex.Message}\n{ex.StackTrace}");
             }
         }
     }
