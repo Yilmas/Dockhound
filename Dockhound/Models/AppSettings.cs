@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Dockhound.Enums;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,8 +14,17 @@ namespace Dockhound.Models
 
     public class AppSettings
     {
+        public BotConfiguration Configuration { get; set; }
         public VerifySettings Verify { get; set; }
         public ApplicantSettings Applicant { get; set; }
+    }
+
+    public class BotConfiguration
+    {
+        public string DiscordToken { get; set; }
+        public string DatabaseConnectionString { get; set; }
+        public string AppInsightsConnectionString { get; set; }
+        public EnvironmentState Environment { get; set; } = EnvironmentState.Development;
     }
 
     public class VerifySettings
@@ -35,7 +45,6 @@ namespace Dockhound.Models
         public List<ulong>? MemberOnlyRoles { get; set; }
         public ulong? ChannelId { get; set; }
         public ulong? MessageId { get; set; }
-        public List<ulong>? Whitelist { get; set; }
     }
 
     public class ApplicantSettings

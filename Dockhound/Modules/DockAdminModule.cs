@@ -11,6 +11,7 @@ using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -29,13 +30,15 @@ namespace Dockhound.Modules
                 private readonly HttpClient _httpClient;
                 private readonly IConfiguration _configuration;
                 private readonly AppSettings _settings;
+                private readonly IAppSettingsService _appSettingsService;
 
-                public DockSettings(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings)
+                public DockSettings(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings, IAppSettingsService appSettingsService)
                 {
                     _dbContext = dbContext;
                     _httpClient = httpClient;
                     _configuration = config;
                     _settings = appSettings.Value;
+                    _appSettingsService = appSettingsService;
                 }
 
                 [RequireUserPermission(GuildPermission.Administrator)]
@@ -99,13 +102,15 @@ namespace Dockhound.Modules
                 private readonly HttpClient _httpClient;
                 private readonly IConfiguration _configuration;
                 private readonly AppSettings _settings;
+                private readonly IAppSettingsService _appSettingsService;
 
-                public VerifyAdminSetup(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings)
+                public VerifyAdminSetup(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings, IAppSettingsService appSettingsService)
                 {
                     _dbContext = dbContext;
                     _httpClient = httpClient;
                     _configuration = config;
                     _settings = appSettings.Value;
+                    _appSettingsService = appSettingsService;
                 }
 
                 [RequireUserPermission(GuildPermission.Administrator)]
@@ -154,8 +159,8 @@ namespace Dockhound.Modules
                         return;
                     }
 
-                    var membersOnlyRoles = _settings.Verify.RestrictedAccess.MemberOnlyRoles.ToSet(); //_configuration["RESTRICT_MEMBERONLY_ROLES"].ParseRoleIds();
-                    var alwaysDenyRoles = _settings.Verify.RestrictedAccess.AlwaysRestrictRoles.ToSet(); //_configuration["RESTRICT_ALWAYS_DENY_ROLES"].ParseRoleIds(); // NEW: multiple role IDs
+                    var membersOnlyRoles = _settings.Verify.RestrictedAccess.MemberOnlyRoles.ToSet();
+                    var alwaysDenyRoles = _settings.Verify.RestrictedAccess.AlwaysRestrictRoles.ToSet();
 
                     // Active allow list: Restricted has NO whitelist; MembersOnly allows configured roles EXCEPT always-deny
                     var activeAllow = accessLevel == AccessRestriction.MembersOnly
@@ -226,38 +231,58 @@ namespace Dockhound.Modules
                         AccessRestriction.Open => null
                     };
 
-                    // Reuse the same stored message ID for both Restricted/MembersOnly
-                    var storedMsgId = _settings.Verify.RestrictedAccess?.ChannelId;
+                    // Always fetch the latest stored ids
+                    var ra = _appSettingsService.GetRestrictedAccess();
+                    var storedChannelId = ra.ChannelId;
+                    var storedMsgId = ra.MessageId;
+
                     if (bannerContent is not null)
                     {
-                        IUserMessage? banner = null;
-                        if (storedMsgId.HasValue)
-                        {
-                            try { banner = await channel.GetMessageAsync(storedMsgId.Value) as IUserMessage; } catch { /* ignore */ }
-                        }
-
-                        if (banner is null)
-                        {
-                            banner = await channel.SendMessageAsync(bannerContent);
-                            AppSettingsService.UpdateRestrictedAccess(channel.Id, banner.Id);
-                        }
-                        else
-                        {
-                            await banner.ModifyAsync(m => m.Content = bannerContent);
-                            AppSettingsService.UpdateRestrictedAccess(channel.Id, banner.Id);
-                        }
-                    }
-                    else
-                    {
-                        if (storedMsgId.HasValue)
+                        if (storedChannelId.HasValue && storedMsgId.HasValue)
                         {
                             try
                             {
-                                if (await channel.GetMessageAsync(storedMsgId.Value) is IUserMessage toDelete)
-                                    await toDelete.DeleteAsync();
+                                var bannerChannel =
+                                    Context.Guild.GetTextChannel(storedChannelId.Value) ??
+                                    Context.Guild.GetTextChannel(channel.Id);
+
+                                if (bannerChannel is not null)
+                                {
+                                    var oldMsg = await bannerChannel.GetMessageAsync(storedMsgId.Value) as IUserMessage;
+                                    if (oldMsg is not null)
+                                        await oldMsg.DeleteAsync();
+                                }
+                            }
+                            catch
+                            {
+                                // ignore (message already gone / permissions / etc.)
+                            }
+                        }
+
+                        var newBanner = await channel.SendMessageAsync(bannerContent);
+
+                        await _appSettingsService.UpdateRestrictedAccessAsync(channel.Id, newBanner.Id);
+                    }
+                    else
+                    {
+                        if (storedChannelId.HasValue && storedMsgId.HasValue)
+                        {
+                            try
+                            {
+                                var bannerChannel =
+                                    Context.Guild.GetTextChannel(storedChannelId.Value) ??
+                                    Context.Guild.GetTextChannel(channel.Id);
+
+                                if (bannerChannel is not null)
+                                {
+                                    var oldMsg = await bannerChannel.GetMessageAsync(storedMsgId.Value) as IUserMessage;
+                                    if (oldMsg is not null)
+                                        await oldMsg.DeleteAsync();
+                                }
                             }
                             catch { /* ignore */ }
-                            AppSettingsService.UpdateRestrictedAccess(); // clear stored state
+
+                            await _appSettingsService.UpdateRestrictedAccessAsync(null, null);
                         }
                     }
                     // ---------- end banner handling ----------

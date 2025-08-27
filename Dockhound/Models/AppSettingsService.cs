@@ -1,69 +1,84 @@
-﻿using Microsoft.Identity.Client;
+﻿using Dockhound.Enums;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
+using Microsoft.Identity.Client;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using Dockhound.Enums;
 
 namespace Dockhound.Models
 {
-    public static class AppSettingsService
+    public class AppSettingsService : IAppSettingsService
     {
-        private const string ConfigPath = "appsettings.json";
+        private readonly IOptionsMonitor<AppSettings> _options;
+        private readonly IConfigurationRoot _configRoot;
+        private readonly string _appSettingsPath;
+        private readonly SemaphoreSlim _gate = new(1, 1);
 
-        private static AppSettings Load()
+        public AppSettingsService(IOptionsMonitor<AppSettings> options, IConfiguration config)
         {
-            if (!File.Exists(ConfigPath))
-                throw new FileNotFoundException("Configuration file not found.", ConfigPath);
-
-            var json = File.ReadAllText(ConfigPath);
-            var settings = JsonConvert.DeserializeObject<AppSettings>(json);
-
-            if (settings == null)
-                throw new Exception("Failed to deserialize appsettings.json");
-
-            return settings;
+            _options = options;
+            _configRoot = (IConfigurationRoot)config;
+            _appSettingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
         }
 
-        private static void Save(AppSettings appSettings)
+        public RestrictedAccessSettings GetRestrictedAccess()
+        => _options.CurrentValue.Verify.RestrictedAccess ?? new RestrictedAccessSettings();
+
+        public EnvironmentState GetCurrentEnvironment()
+        => _options.CurrentValue.Configuration.Environment;
+
+        public void Save(AppSettings appSettings)
         {
             var json = JsonConvert.SerializeObject(appSettings, Formatting.Indented);
-            File.WriteAllText(ConfigPath, json);
+            File.WriteAllText(_appSettingsPath, json);
         }
 
-        public static RestrictedAccessSettings GetRestrictedAccess()
+        /// <summary>
+        /// Update Verify:RestrictedAccess ChannelId/MessageId in appsettings.json and reload config.
+        /// </summary>
+        public async Task UpdateRestrictedAccessAsync(ulong? channelId, ulong? messageId, CancellationToken ct = default)
         {
-            var config = Load();
-            return config.Verify.RestrictedAccess;
-        }
-
-        public static void UpdateRestrictedAccess()
-        {
-            UpdateRestrictedAccess(null, null);
-        }
-
-        public static void UpdateRestrictedAccess(ulong? channelId, ulong? messageId)
-        {
-            var config = Load();
-            var ra = config.Verify.RestrictedAccess;
-            ra.ChannelId = channelId;
-            ra.MessageId = messageId;
-            Save(config);
-        }
-
-        public static EnvironmentState GetCurrentEnvironment()
-        {
-            string? env = Environment.GetEnvironmentVariable("DOCK_ENVIRONMENT");
-
-            if (string.IsNullOrEmpty(env))
+            await _gate.WaitAsync(ct);
+            try
             {
-                return EnvironmentState.Development; // Default to Development if not set
-            }
+                var json = await File.ReadAllTextAsync(_appSettingsPath, ct);
+                var root = JsonNode.Parse(json) as JsonObject ?? new JsonObject();
 
-            return Enum.TryParse(env, out EnvironmentState result) ? result : EnvironmentState.Development;
+                // Ensure Verify object exists
+                if (root["Verify"] is not JsonObject verify)
+                {
+                    verify = new JsonObject();
+                    root["Verify"] = verify;
+                }
+
+                // Ensure RestrictedAccess object exists
+                if (verify["RestrictedAccess"] is not JsonObject ra)
+                {
+                    ra = new JsonObject();
+                    verify["RestrictedAccess"] = ra;
+                }
+
+                // Set values (null -> JSON null)
+                ra["ChannelId"] = channelId is null ? null : JsonValue.Create(channelId.Value);
+                ra["MessageId"] = messageId is null ? null : JsonValue.Create(messageId.Value);
+
+                var updated = root.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+                await File.WriteAllTextAsync(_appSettingsPath, updated, ct);
+
+                // Hot-reload bound options
+                _configRoot.Reload();
+            }
+            finally
+            {
+                _gate.Release();
+            }
         }
     }
 }
