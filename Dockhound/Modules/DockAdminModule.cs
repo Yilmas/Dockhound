@@ -5,14 +5,18 @@ using Dockhound.Enums;
 using Dockhound.Extensions;
 using Dockhound.Logs;
 using Dockhound.Models;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 
 namespace Dockhound.Modules
@@ -30,68 +34,116 @@ namespace Dockhound.Modules
                 private readonly HttpClient _httpClient;
                 private readonly IConfiguration _configuration;
                 private readonly AppSettings _settings;
+                private readonly IOptionsMonitor<AppSettings> _monitorSettings;
                 private readonly IAppSettingsService _appSettingsService;
 
-                public DockSettings(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings, IAppSettingsService appSettingsService)
+                public DockSettings(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings, IOptionsMonitor<AppSettings> monitorSettings, IAppSettingsService appSettingsService)
                 {
                     _dbContext = dbContext;
                     _httpClient = httpClient;
                     _configuration = config;
                     _settings = appSettings.Value;
                     _appSettingsService = appSettingsService;
+                    _monitorSettings = monitorSettings;
                 }
 
                 [RequireUserPermission(GuildPermission.Administrator)]
                 [SlashCommand("view", "Displays current app settings")]
                 public async Task GetAppSettings()
                 {
-                    string json = System.Text.Json.JsonSerializer.Serialize(
-                        _settings,
-                        new System.Text.Json.JsonSerializerOptions { WriteIndented = true }
-                    );
+                    var node = JsonSerializer.SerializeToNode(
+                        _monitorSettings.CurrentValue,
+                        new JsonSerializerOptions { WriteIndented = true }
+                    ) as JsonObject;
+
+                    if (node is not null && node.ContainsKey("Configuration"))
+                    {
+                        node["Configuration"] = new JsonObject
+                        {
+                            ["_redacted"] = "Removed to prevent leakage"
+                        };
+                    }
+
+                    var pretty = node?.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) ?? "{}";
+
+                    // Keep embed under 4096 chars
+                    const int max = 3900; // headroom for code fences
+                    if (pretty.Length > max)
+                        pretty = pretty.Substring(0, max) + "\n... (truncated)";
 
                     var embed = new EmbedBuilder()
                         .WithTitle("App Settings")
-                        .WithDescription($"```\n{json}\n```")
+                        .WithDescription($"```\n{pretty}\n```")
                         .WithColor(Color.Blue)
                         .Build();
 
                     await RespondAsync(embed: embed, ephemeral: true);
                 }
 
-
                 [RequireUserPermission(GuildPermission.ViewAuditLog | GuildPermission.ManageMessages)]
-                [SlashCommand("log", "Display audit log for the bot.")]
-                public async Task TrackerLog(string query = "all", DateTime? startDate = null, DateTime? endDate = null)
+                [SlashCommand("logs-per-message", "Show all log events for a given message id over a given timespan in days")]
+                public async Task GetLogEvents([Summary("message_id", "The Discord message ID")] string messageId, [Summary("days_span", "Days into the past")] int daysSpan)
                 {
+                    await DeferAsync(ephemeral: true);
 
-                    var lookup = await LogFilter.LookupLogEventsAsync(_dbContext, query, startDate, endDate);
+                    daysSpan = -1 * daysSpan;
 
-                    var memoryStream = LogFilter.ConvertToMemoryStream(lookup);
-
-                    string start = startDate?.ToString("yyyyMMdd_HHmmss") ?? "start";
-                    string end = endDate?.ToString("yyyyMMdd_HHmmss") ?? "now";
-
-                    await RespondWithFileAsync(memoryStream, $"logs_{start}_to_{end}.json", "Here are the filtered log entries.", ephemeral: true);
-
-                    try
+                    if (!ulong.TryParse(messageId, out var msgId))
                     {
-                        var msg = await GetOriginalResponseAsync();
-
-                        var log = new LogEvent(
-                            eventName: "Log Retrieval",
-                            messageId: msg.Id,
-                            username: Context.User.Username,
-                            userId: Context.User.Id
-                        );
-
-                        _dbContext.LogEvents.Add(log);
-                        await _dbContext.SaveChangesAsync();
+                        await FollowupAsync("Invalid message ID format.", ephemeral: true);
+                        return;
                     }
-                    catch (Exception e)
+
+                    var cutoff = DateTime.UtcNow.Date.AddDays(daysSpan);
+                    var logs = await _dbContext.LogEvents
+                        .Where(l => l.MessageId == msgId && l.Updated >= cutoff)
+                        .ToListAsync();
+
+                    // Group by ISO year+week
+                    var weeklyCounts = logs
+                        .GroupBy(l =>
+                        {
+                            var dt = DateTime.SpecifyKind(l.Updated, DateTimeKind.Utc);
+                            return (Year: ISOWeek.GetYear(dt), Week: ISOWeek.GetWeekOfYear(dt));
+                        })
+                        .ToDictionary(g => g.Key, g => g.Count());
+
+                    // Build week buckets from the Monday of the cutoff to today, step 7 days
+                    static DateTime StartOfIsoWeek(DateTime d)
                     {
-                        Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
+                        int dow = (int)d.DayOfWeek;
+                        int diff = (dow == 0 ? -6 : 1 - dow); // move back to Monday
+                        return d.Date.AddDays(diff);
                     }
+
+                    var buckets = new List<(int Year, int Week, DateTime Start)>();
+                    var cursor = StartOfIsoWeek(cutoff);
+                    var end = DateTime.UtcNow.Date;
+                    while (cursor <= end)
+                    {
+                        buckets.Add((ISOWeek.GetYear(cursor), ISOWeek.GetWeekOfYear(cursor), cursor));
+                        cursor = cursor.AddDays(7);
+                    }
+
+                    // Render lines, include zero weeks
+                    var lines = new List<string>(buckets.Count);
+                    int total = 0;
+                    foreach (var b in buckets)
+                    {
+                        var key = (b.Year, b.Week);
+                        var count = weeklyCounts.TryGetValue(key, out var c) ? c : 0;
+                        total += count;
+                        lines.Add($"{b.Year}-W{b.Week:D2}  ({b.Start:dd MMM}) : {count}");
+                    }
+
+                    var eb = new EmbedBuilder()
+                        .WithTitle($"Log events for message {messageId}")
+                        .WithColor(Color.DarkGrey)
+                        .AddField($"Total (last {daysSpan} days)", total, inline: true)
+                        .AddField("Weeks covered", buckets.Count, inline: true)
+                        .AddField("Weekly updates", "```\n" + string.Join("\n", lines) + "\n```", inline: false);
+
+                    await FollowupAsync(embed: eb.Build(), ephemeral: true);
                 }
             }
 
