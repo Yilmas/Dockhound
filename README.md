@@ -20,6 +20,7 @@ Your friendly Companion Bot, for when you feel lonely and abandoned in the yard!
 
 ## Notes
 - While DotEnv are available with prefix `DOCK_`, I recommend using appsettings.json
+- Applicant has been deprecated, code left behind outcommented for historical reasons (e.g., I might need some references later)
 
 ### Sample AppSettings
 
@@ -52,10 +53,7 @@ Your friendly Companion Bot, for when you feel lonely and abandoned in the yard!
         ROLE_ID
       ],
       "ChannelId": CHANNEL_ID_ULONG,
-      "MessageId": MESSAGE_ID_ULONG,
-      "Whitelist": [
-        ROLE_ID
-      ]
+      "MessageId": MESSAGE_ID_ULONG
     }
   },
   "Applicant": {
