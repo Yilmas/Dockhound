@@ -5,14 +5,14 @@ using Dockhound.Logs;
 
 namespace Dockhound.Models;
 
-public partial class WllTrackerContext : DbContext
+public partial class DockhoundContext : DbContext
 {
     public DbSet<LogEvent> LogEvents { get; set; } = null!;
     public DbSet<LogError> LogErrors { get; set; } = null!;
 
-    public WllTrackerContext() {}
+    public DockhoundContext() {}
 
-    public WllTrackerContext(DbContextOptions<WllTrackerContext> options) : base(options) { }
+    public DockhoundContext(DbContextOptions<DockhoundContext> options) : base(options) { }
 
     //protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     //{

@@ -30,10 +30,10 @@ public class InteractionHandler
     private readonly InteractionService _handler;
     private readonly IServiceProvider _services;
     private readonly IConfiguration _configuration;
-    private readonly WllTrackerContext _dbContext;
+    private readonly DockhoundContext _dbContext;
     private readonly AppSettings _settings;
 
-    public InteractionHandler(DiscordSocketClient client, InteractionService handler, IServiceProvider services, IConfiguration config, WllTrackerContext dbContext, IOptions<AppSettings> appSettings)
+    public InteractionHandler(DiscordSocketClient client, InteractionService handler, IServiceProvider services, IConfiguration config, DockhoundContext dbContext, IOptions<AppSettings> appSettings)
     {
         _client = client;
         _handler = handler;

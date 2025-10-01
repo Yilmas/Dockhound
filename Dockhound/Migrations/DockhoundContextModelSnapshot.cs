@@ -10,8 +10,8 @@ using Dockhound.Models;
 
 namespace Dockhound.Migrations
 {
-    [DbContext(typeof(WllTrackerContext))]
-    partial class WllTrackerContextModelSnapshot : ModelSnapshot
+    [DbContext(typeof(DockhoundContext))]
+    partial class DockhoundContextModelSnapshot : ModelSnapshot
     {
         protected override void BuildModel(ModelBuilder modelBuilder)
         {

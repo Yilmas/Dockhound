@@ -40,12 +40,12 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
     [Group("verify", "Root command of the HvL Verification Program")]
     public class VerifySetup : InteractionModuleBase<SocketInteractionContext>
     {
-        private readonly WllTrackerContext _dbContext;
+        private readonly DockhoundContext _dbContext;
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
         private readonly AppSettings _settings;
 
-        public VerifySetup(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings)
+        public VerifySetup(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings)
         {
             _dbContext = dbContext;
             _httpClient = httpClient;

@@ -56,7 +56,7 @@ public class Program
             .AddSingleton(_configuration)
             .AddSingleton(_socketConfig)
             .AddSingleton<HttpClient>()
-            .AddDbContext<WllTrackerContext>(options => options.UseSqlServer(_configuration["Configuration:DatabaseConnectionString"])) 
+            .AddDbContext<DockhoundContext>(options => options.UseSqlServer(_configuration["Configuration:DatabaseConnectionString"])) 
             .AddSingleton<IAppSettingsService, AppSettingsService>()
             .AddSingleton<DiscordSocketClient>()
             .AddSingleton(x => new InteractionService(x.GetRequiredService<DiscordSocketClient>(), _interactionServiceConfig))
@@ -96,7 +96,7 @@ public class Program
             if (args.ExceptionObject is Exception ex)
             {
                 await using var scope = _services.CreateAsyncScope();
-                var dbContext = scope.ServiceProvider.GetRequiredService<WllTrackerContext>();
+                var dbContext = scope.ServiceProvider.GetRequiredService<DockhoundContext>();
 
                 await ExceptionHandler.HandleExceptionAsync(ex, dbContext, "Unhandled global exception");
             }

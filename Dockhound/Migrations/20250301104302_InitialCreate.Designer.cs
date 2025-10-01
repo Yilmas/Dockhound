@@ -11,7 +11,7 @@ using Dockhound.Models;
 
 namespace Dockhound.Migrations
 {
-    [DbContext(typeof(WllTrackerContext))]
+    [DbContext(typeof(DockhoundContext))]
     [Migration("20250301104302_InitialCreate")]
     partial class InitialCreate
     {

@@ -9,7 +9,7 @@ namespace Dockhound.Logs
 {
     public static class ExceptionHandler
     {
-        public static async Task HandleExceptionAsync(Exception ex, WllTrackerContext dbContext, string? context = null)
+        public static async Task HandleExceptionAsync(Exception ex, DockhoundContext dbContext, string? context = null)
         {
             try
             {

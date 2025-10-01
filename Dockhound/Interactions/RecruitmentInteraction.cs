@@ -11,14 +11,14 @@ namespace Dockhound.Interactions
 {
     public class RecruitmentInteraction : InteractionModuleBase<SocketInteractionContext>
     {
-        private readonly WllTrackerContext _dbContext;
+        private readonly DockhoundContext _dbContext;
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
         private readonly AppSettings _settings;
 
         private long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 
-        public RecruitmentInteraction(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings)
+        public RecruitmentInteraction(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings)
         {
             _dbContext = dbContext;
             _httpClient = httpClient;

@@ -30,14 +30,14 @@ namespace Dockhound.Modules
             [Group("settings", "Settings for Dockhound")]
             public class DockSettings : InteractionModuleBase<SocketInteractionContext>
             {
-                private readonly WllTrackerContext _dbContext;
+                private readonly DockhoundContext _dbContext;
                 private readonly HttpClient _httpClient;
                 private readonly IConfiguration _configuration;
                 private readonly AppSettings _settings;
                 private readonly IOptionsMonitor<AppSettings> _monitorSettings;
                 private readonly IAppSettingsService _appSettingsService;
 
-                public DockSettings(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings, IOptionsMonitor<AppSettings> monitorSettings, IAppSettingsService appSettingsService)
+                public DockSettings(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings, IOptionsMonitor<AppSettings> monitorSettings, IAppSettingsService appSettingsService)
                 {
                     _dbContext = dbContext;
                     _httpClient = httpClient;
@@ -150,13 +150,13 @@ namespace Dockhound.Modules
             [Group("verify", "Admin root for Verify Module")]
             public class VerifyAdminSetup : InteractionModuleBase<SocketInteractionContext>
             {
-                private readonly WllTrackerContext _dbContext;
+                private readonly DockhoundContext _dbContext;
                 private readonly HttpClient _httpClient;
                 private readonly IConfiguration _configuration;
                 private readonly AppSettings _settings;
                 private readonly IAppSettingsService _appSettingsService;
 
-                public VerifyAdminSetup(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings, IAppSettingsService appSettingsService)
+                public VerifyAdminSetup(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings, IAppSettingsService appSettingsService)
                 {
                     _dbContext = dbContext;
                     _httpClient = httpClient;
