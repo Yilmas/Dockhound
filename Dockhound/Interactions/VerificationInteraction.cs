@@ -1,7 +1,6 @@
 ﻿using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
-using Dockhound.Config;
 using Dockhound.Enums;
 using Dockhound.Logs;
 using Dockhound.Modals;
@@ -24,17 +23,17 @@ namespace Dockhound.Interactions
         private readonly DockhoundContext _dbContext;
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
-        private readonly IGuildSettingsProvider _guildSettingsProvider;
+        private readonly IGuildSettingsService _guildSettingsService;
         private readonly IVerificationHistoryService _verificationHistory;
 
         private long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 
-        public VerificationInteraction(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IGuildSettingsProvider guildSettingsProvider, IVerificationHistoryService verificationHistoryService)
+        public VerificationInteraction(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IGuildSettingsService guildSettingsService, IVerificationHistoryService verificationHistoryService)
         {
             _dbContext = dbContext;
             _httpClient = httpClient;
             _configuration = config;
-            _guildSettingsProvider = guildSettingsProvider;
+            _guildSettingsService = guildSettingsService;
             _verificationHistory = verificationHistoryService;
         }
 
@@ -45,7 +44,7 @@ namespace Dockhound.Interactions
             var comp = (SocketMessageComponent)Context.Interaction;
             var guild = Context.Guild;
 
-            var cfg = await _guildSettingsProvider.GetAsync(Context.Guild.Id);
+            var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
 
             var embed = comp.Message.Embeds.FirstOrDefault()?.ToEmbedBuilder();
             if (embed == null) 
@@ -113,7 +112,7 @@ namespace Dockhound.Interactions
                 if (factionSecureChannel is null)
                     return;
 
-                var displayName = await _guildSettingsProvider.GetGuildDisplayNameAsync(Context.Guild.Id) ?? "";
+                var displayName = await _guildSettingsService.GetGuildDisplayNameAsync(Context.Guild.Id) ?? "";
 
                 await user.SendMessageAsync(
                     $"✅ Your {displayName} verification has been approved! 🎉 " +
@@ -178,7 +177,7 @@ namespace Dockhound.Interactions
             if (guild is null)
                 return;
 
-            var cfg = await _guildSettingsProvider.GetAsync(Context.Guild.Id);
+            var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
 
             // SocketGuild uses cached sync getters
             var user = guild.GetUser(userId);
@@ -215,7 +214,7 @@ namespace Dockhound.Interactions
             try
             {
 
-                var displayName = await _guildSettingsProvider.GetGuildDisplayNameAsync(Context.Guild.Id) ?? "the server";
+                var displayName = await _guildSettingsService.GetGuildDisplayNameAsync(Context.Guild.Id) ?? "the server";
                 await user.SendMessageAsync($"❌ Your verification for {displayName} has been denied.\n**Reason:** {modal.Reason}");
             }
             catch

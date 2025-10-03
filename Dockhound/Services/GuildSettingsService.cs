@@ -1,4 +1,5 @@
-﻿using Dockhound.Models;
+﻿using Dockhound.Config;
+using Dockhound.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
@@ -8,9 +9,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dockhound.Config
+namespace Dockhound.Services
 {
-    public sealed class GuildSettingsProvider : IGuildSettingsProvider
+    public sealed class GuildSettingsService : IGuildSettingsService
     {
         private readonly IDbContextFactory<DockhoundContext> _dbFactory;
         private readonly IMemoryCache _cache;
@@ -20,7 +21,7 @@ namespace Dockhound.Config
 
         private static string CacheKey(ulong gid) => $"guildcfg:{gid}";
 
-        public GuildSettingsProvider(IDbContextFactory<DockhoundContext> dbFactory, IMemoryCache cache, IOptions<GuildDefaults> defaults)
+        public GuildSettingsService(IDbContextFactory<DockhoundContext> dbFactory, IMemoryCache cache, IOptions<GuildDefaults> defaults)
         {
             _dbFactory = dbFactory;
             _cache = cache;

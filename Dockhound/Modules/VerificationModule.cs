@@ -2,7 +2,6 @@
 using Discord.Interactions;
 using Discord.Rest;
 using Discord.WebSocket;
-using Dockhound.Config;
 using Dockhound.Enums;
 using Dockhound.Extensions;
 using Dockhound.Logs;
@@ -45,15 +44,15 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
         private readonly DockhoundContext _dbContext;
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
-        private readonly IGuildSettingsProvider _guildSettingsProvider;
+        private readonly IGuildSettingsService _guildSettingsService;
         private readonly IVerificationHistoryService _verificationHistory;
 
-        public VerifySetup(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IGuildSettingsProvider guildSettingsProvider, IVerificationHistoryService verificationHistoryService)
+        public VerifySetup(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IGuildSettingsService guildSettingsService, IVerificationHistoryService verificationHistoryService)
         {
             _dbContext = dbContext;
             _httpClient = httpClient;
             _configuration = config;
-            _guildSettingsProvider = guildSettingsProvider;
+            _guildSettingsService = guildSettingsService;
             _verificationHistory = verificationHistoryService;
         }
 
@@ -62,7 +61,7 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
         {
             await DeferAsync(ephemeral: true);
 
-            var cfg = await _guildSettingsProvider.GetAsync(Context.Guild.Id);
+            var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
 
             long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
             
@@ -81,12 +80,25 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
             await using var stream = new MemoryStream(await response.Content.ReadAsByteArrayAsync());
 
             var history = await _verificationHistory.GetTrackRecordAsync(Context.User.Id);
-            var lastFaction = await _verificationHistory.GetMostRecentFactionAsync(Context.User.Id);
 
-            string track = history.Count == 0
-                ? "_No previous approvals._"
-                : string.Join("\n", history.Select(h =>
-                    $"• {h.Faction} — <t:{new DateTimeOffset(h.ApprovedAtUtc).ToUnixTimeSeconds()}:R>"));
+            var track = "_No previous approvals._";
+
+            if (history.Count > 0)
+            {
+                var lines = new List<string>();
+
+                foreach (var h in history)
+                {
+                    var guildName = await _guildSettingsService.GetGuildDisplayNameAsync(h.GuildId)
+                                    ?? $"Guild {h.GuildId}";
+
+                    lines.Add(
+                        $"• {h.Faction} — <t:{new DateTimeOffset(h.ApprovedAtUtc).ToUnixTimeSeconds()}:R> — {guildName}"
+                    );
+                }
+
+                track = string.Join("\n", lines);
+            }
 
 
             var embed = new EmbedBuilder()

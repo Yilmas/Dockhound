@@ -39,23 +39,10 @@ namespace Dockhound.Services
                 .Where(v => v.UserId == userId)
                 .OrderByDescending(v => v.ApprovedAtUtc)
                 .Take(Math.Max(1, take))
-                .Select(v => new VerificationBrief(v.Faction, v.ApprovedAtUtc))
+                .Select(v => new VerificationBrief(v.GuildId, v.Faction, v.ApprovedAtUtc))
                 .ToListAsync(ct);
 
             return items;
-        }
-
-        public async Task<Faction?> GetMostRecentFactionAsync(ulong userId, CancellationToken ct = default)
-        {
-            await using var db = await _dbFactory.CreateDbContextAsync(ct);
-
-            var last = await db.VerificationRecords
-                .Where(v => v.UserId == userId)
-                .OrderByDescending(v => v.ApprovedAtUtc)
-                .Select(v => (Faction?)v.Faction)
-                .FirstOrDefaultAsync(ct);
-
-            return last; // null if none
         }
 
         public static class FactionParser

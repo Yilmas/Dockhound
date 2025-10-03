@@ -1,12 +1,13 @@
-﻿using System;
+﻿using Dockhound.Config;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dockhound.Config
+namespace Dockhound.Services
 {
-    public interface IGuildSettingsProvider
+    public interface IGuildSettingsService
     {
         Task<GuildConfig> GetAsync(ulong guildId, CancellationToken ct = default);
         Task UpdateAsync(ulong guildId, GuildConfig next, string? changedBy = null, CancellationToken ct = default);

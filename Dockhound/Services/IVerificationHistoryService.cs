@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Dockhound.Services
 {
-    public sealed record VerificationBrief(Faction Faction, DateTime ApprovedAtUtc);
+    public sealed record VerificationBrief(ulong GuildId, Faction Faction, DateTime ApprovedAtUtc);
 
     public interface IVerificationHistoryService
     {
@@ -15,6 +15,5 @@ namespace Dockhound.Services
 
         Task<IReadOnlyList<VerificationBrief>> GetTrackRecordAsync(ulong userId, int take = 5, CancellationToken ct = default);
 
-        Task<Faction?> GetMostRecentFactionAsync(ulong userId, CancellationToken ct = default);
     }
 }

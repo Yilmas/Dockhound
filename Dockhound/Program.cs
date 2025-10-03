@@ -62,7 +62,7 @@ public class Program
             .AddMemoryCache()
             .Configure<GuildDefaults>(p => p.Value = new GuildConfig())
             .AddSingleton<IAppSettingsService, AppSettingsService>()
-            .AddSingleton<IGuildSettingsProvider, GuildSettingsProvider>()
+            .AddSingleton<IGuildSettingsService, GuildSettingsService>()
             .AddSingleton<IVerificationHistoryService, VerificationHistoryService>()
             .AddSingleton<DiscordSocketClient>()
             .AddSingleton(x => new InteractionService(x.GetRequiredService<DiscordSocketClient>(), _interactionServiceConfig))
