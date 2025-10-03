@@ -15,6 +15,8 @@ public partial class DockhoundContext : DbContext
     public DbSet<GuildSettings> GuildSettings => Set<GuildSettings>();
     public DbSet<GuildSettingsHistory> GuildSettingsHistories => Set<GuildSettingsHistory>();
 
+    public DbSet<VerificationRecord> VerificationRecords => Set<VerificationRecord>();
+
     public DbSet<Whiteboard> Whiteboards => Set<Whiteboard>();
     public DbSet<WhiteboardRole> WhiteboardRoles => Set<WhiteboardRole>();
     public DbSet<WhiteboardVersion> WhiteboardVersions => Set<WhiteboardVersion>();
@@ -31,6 +33,11 @@ public partial class DockhoundContext : DbContext
         {
             e.HasKey(x => x.GuildId);
             e.Property(x => x.GuildId).ValueGeneratedNever();
+            e.Property(x => x.Tag).HasMaxLength(12);
+            // Unique filtered index on Tag (SQL Server)
+            e.HasIndex(x => x.Tag)
+             .IsUnique()
+             .HasFilter("[Tag] IS NOT NULL");
             e.HasOne(x => x.Settings)
              .WithOne(x => x.Guild)
              .HasForeignKey<GuildSettings>(x => x.GuildId)
@@ -52,6 +59,16 @@ public partial class DockhoundContext : DbContext
             e.HasKey(x => x.Id);
             e.Property(x => x.Json).IsRequired().HasColumnType("nvarchar(max)");
             e.HasIndex(x => x.GuildId);
+        });
+
+        modelBuilder.Entity<VerificationRecord>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.ToTable("VerificationRecords");
+            e.Property(x => x.Faction).HasMaxLength(32).IsRequired();
+            e.Property(x => x.ImageUrl).HasColumnType("nvarchar(max)");
+            e.HasIndex(x => new { x.UserId, x.ApprovedAtUtc });
+            e.HasIndex(x => new { x.GuildId, x.ApprovedAtUtc });
         });
 
         // Converters

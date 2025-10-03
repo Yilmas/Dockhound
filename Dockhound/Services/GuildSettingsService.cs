@@ -1,4 +1,5 @@
-﻿using Dockhound.Models;
+﻿using Dockhound.Config;
+using Dockhound.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
@@ -8,9 +9,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Dockhound.Config
+namespace Dockhound.Services
 {
-    public sealed class GuildSettingsProvider : IGuildSettingsProvider
+    public sealed class GuildSettingsService : IGuildSettingsService
     {
         private readonly IDbContextFactory<DockhoundContext> _dbFactory;
         private readonly IMemoryCache _cache;
@@ -20,7 +21,7 @@ namespace Dockhound.Config
 
         private static string CacheKey(ulong gid) => $"guildcfg:{gid}";
 
-        public GuildSettingsProvider(IDbContextFactory<DockhoundContext> dbFactory, IMemoryCache cache, IOptions<GuildDefaults> defaults)
+        public GuildSettingsService(IDbContextFactory<DockhoundContext> dbFactory, IMemoryCache cache, IOptions<GuildDefaults> defaults)
         {
             _dbFactory = dbFactory;
             _cache = cache;
@@ -157,5 +158,50 @@ namespace Dockhound.Config
 
         private static GuildConfig Clone(GuildConfig cfg)
             => Json.Deserialize<GuildConfig>(Json.Serialize(cfg))!;
+
+        public async Task<string?> GetGuildNameAsync(ulong guildId, CancellationToken ct = default)
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync(ct);
+
+            var name = await db.Guilds
+                .Where(g => g.GuildId == guildId)
+                .Select(g => g.Name)
+                .FirstOrDefaultAsync(ct);
+
+            return string.IsNullOrWhiteSpace(name) ? null : name;
+        }
+
+        public async Task<string?> GetGuildTagAsync(ulong guildId, CancellationToken ct = default)
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync(ct);
+
+            var tag = await db.Guilds
+                .Where(g => g.GuildId == guildId)
+                .Select(g => g.Tag)
+                .FirstOrDefaultAsync(ct);
+
+            return string.IsNullOrWhiteSpace(tag) ? null : tag;
+        }
+
+        public async Task<string?> GetGuildDisplayNameAsync(ulong guildId, CancellationToken ct = default)
+        {
+            await using var db = await _dbFactory.CreateDbContextAsync(ct);
+
+            var guild = await db.Guilds
+                .Where(g => g.GuildId == guildId)
+                .Select(g => new { g.Tag, g.Name })
+                .FirstOrDefaultAsync(ct);
+
+            if (guild == null)
+                return null;
+
+            if (!string.IsNullOrWhiteSpace(guild.Tag))
+                return guild.Tag;
+
+            if (!string.IsNullOrWhiteSpace(guild.Name))
+                return guild.Name;
+
+            return null;
+        }
     }
 }

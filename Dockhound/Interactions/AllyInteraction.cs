@@ -1,10 +1,10 @@
 ﻿using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
-using Dockhound.Config;
 using Dockhound.Logs;
 using Dockhound.Modals;
 using Dockhound.Models;
+using Dockhound.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -15,16 +15,16 @@ namespace Dockhound.Interactions
         private readonly DockhoundContext _dbContext;
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
-        private readonly IGuildSettingsProvider _guildSettingsProvider;
+        private readonly IGuildSettingsService _guildSettingsService;
 
         private long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 
-        public AllyInteraction(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IGuildSettingsProvider guildSettingsProvider)
+        public AllyInteraction(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IGuildSettingsService guildSettingsService)
         {
             _dbContext = dbContext;
             _httpClient = httpClient;
             _configuration = config;
-            _guildSettingsProvider = guildSettingsProvider;
+            _guildSettingsService = guildSettingsService;
         }
 
         // REQUEST ALLY
@@ -34,7 +34,7 @@ namespace Dockhound.Interactions
             if (Context.Guild is null)
                 return;
 
-            var cfg = await _guildSettingsProvider.GetAsync(Context.Guild.Id);
+            var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
 
             var guild = Context.Guild;
             var acting = guild.GetUser(Context.User.Id);
@@ -237,7 +237,7 @@ namespace Dockhound.Interactions
                 //if (!ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out var reviewChannelId))
                 //    return;
 
-                var cfg = await _guildSettingsProvider.GetAsync(Context.Guild.Id);
+                var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
                 var reviewChannel = cfg.Verify.ReviewChannelId is ulong id
                         ? guild.GetTextChannel(id)
                         : null;

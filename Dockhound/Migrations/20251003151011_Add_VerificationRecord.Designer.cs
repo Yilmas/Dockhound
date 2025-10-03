@@ -4,6 +4,7 @@ using Dockhound.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Dockhound.Migrations
 {
     [DbContext(typeof(DockhoundContext))]
-    partial class DockhoundContextModelSnapshot : ModelSnapshot
+    [Migration("20251003151011_Add_VerificationRecord")]
+    partial class Add_VerificationRecord
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -106,15 +109,7 @@ namespace Dockhound.Migrations
                     b.Property<string>("Name")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("Tag")
-                        .HasMaxLength(12)
-                        .HasColumnType("nvarchar(12)");
-
                     b.HasKey("GuildId");
-
-                    b.HasIndex("Tag")
-                        .IsUnique()
-                        .HasFilter("[Tag] IS NOT NULL");
 
                     b.ToTable("Guilds");
                 });
@@ -203,110 +198,7 @@ namespace Dockhound.Migrations
 
                     b.HasIndex("UserId", "ApprovedAtUtc");
 
-                    b.ToTable("VerificationRecords", (string)null);
-                });
-
-            modelBuilder.Entity("Dockhound.Models.Whiteboard", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<decimal>("ChannelId")
-                        .HasColumnType("decimal(20,0)");
-
-                    b.Property<decimal>("CreatedById")
-                        .HasColumnType("decimal(20,0)");
-
-                    b.Property<DateTime>("CreatedUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("GuildId")
-                        .HasColumnType("decimal(20,0)");
-
-                    b.Property<bool>("IsArchived")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bit")
-                        .HasDefaultValue(false);
-
-                    b.Property<decimal>("MessageId")
-                        .HasColumnType("decimal(20,0)");
-
-                    b.Property<byte>("Mode")
-                        .HasColumnType("tinyint");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Whiteboards", (string)null);
-                });
-
-            modelBuilder.Entity("Dockhound.Models.WhiteboardRole", b =>
-                {
-                    b.Property<long>("WhiteboardId")
-                        .HasColumnType("bigint");
-
-                    b.Property<decimal>("RoleId")
-                        .HasColumnType("decimal(20,0)");
-
-                    b.HasKey("WhiteboardId", "RoleId");
-
-                    b.ToTable("WhiteboardRoles", (string)null);
-                });
-
-            modelBuilder.Entity("Dockhound.Models.WhiteboardVersion", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("EditDistance")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("EditedUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal>("EditorId")
-                        .HasColumnType("decimal(20,0)");
-
-                    b.Property<int>("NewLength")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("PercentChanged")
-                        .HasColumnType("decimal(5,2)");
-
-                    b.Property<int>("PrevLength")
-                        .HasColumnType("int");
-
-                    b.Property<int>("VersionIndex")
-                        .HasColumnType("int");
-
-                    b.Property<long>("WhiteboardId")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WhiteboardId", "VersionIndex")
-                        .IsUnique();
-
-                    b.ToTable("WhiteboardVersions", (string)null);
+                    b.ToTable("VerificationRecord");
                 });
 
             modelBuilder.Entity("Dockhound.Models.GuildSettings", b =>
@@ -320,38 +212,9 @@ namespace Dockhound.Migrations
                     b.Navigation("Guild");
                 });
 
-            modelBuilder.Entity("Dockhound.Models.WhiteboardRole", b =>
-                {
-                    b.HasOne("Dockhound.Models.Whiteboard", "Whiteboard")
-                        .WithMany("Roles")
-                        .HasForeignKey("WhiteboardId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Whiteboard");
-                });
-
-            modelBuilder.Entity("Dockhound.Models.WhiteboardVersion", b =>
-                {
-                    b.HasOne("Dockhound.Models.Whiteboard", "Whiteboard")
-                        .WithMany("Versions")
-                        .HasForeignKey("WhiteboardId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Whiteboard");
-                });
-
             modelBuilder.Entity("Dockhound.Models.Guild", b =>
                 {
                     b.Navigation("Settings");
-                });
-
-            modelBuilder.Entity("Dockhound.Models.Whiteboard", b =>
-                {
-                    b.Navigation("Roles");
-
-                    b.Navigation("Versions");
                 });
 #pragma warning restore 612, 618
         }

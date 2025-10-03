@@ -10,6 +10,7 @@ namespace Dockhound.Models
     {
         public ulong GuildId { get; set; }
         public string? Name { get; set; }
+        public string? Tag { get; set; }
         public DateTime? CreatedAtUtc { get; set; } = DateTime.UtcNow;
         public GuildSettings? Settings { get; set; }
     }
