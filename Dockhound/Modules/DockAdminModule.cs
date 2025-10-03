@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using Dockhound.Config;
 using Dockhound.Enums;
 using Dockhound.Extensions;
 using Dockhound.Logs;
@@ -17,7 +18,9 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using static System.Net.WebRequestMethods;
 
 namespace Dockhound.Modules
 {
@@ -30,14 +33,18 @@ namespace Dockhound.Modules
             [Group("settings", "Settings for Dockhound")]
             public class DockSettings : InteractionModuleBase<SocketInteractionContext>
             {
-                private readonly WllTrackerContext _dbContext;
+                private readonly DockhoundContext _dbContext;
                 private readonly HttpClient _httpClient;
                 private readonly IConfiguration _configuration;
                 private readonly AppSettings _settings;
                 private readonly IOptionsMonitor<AppSettings> _monitorSettings;
                 private readonly IAppSettingsService _appSettingsService;
+                private readonly IGuildSettingsProvider _guildSettingsProvider;
 
-                public DockSettings(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings, IOptionsMonitor<AppSettings> monitorSettings, IAppSettingsService appSettingsService)
+                public DockSettings(DockhoundContext dbContext, HttpClient httpClient, 
+                                    IConfiguration config, IOptions<AppSettings> appSettings, 
+                                    IOptionsMonitor<AppSettings> monitorSettings, IAppSettingsService appSettingsService, 
+                                    IGuildSettingsProvider guildSettingsProvider)
                 {
                     _dbContext = dbContext;
                     _httpClient = httpClient;
@@ -45,6 +52,7 @@ namespace Dockhound.Modules
                     _settings = appSettings.Value;
                     _appSettingsService = appSettingsService;
                     _monitorSettings = monitorSettings;
+                    _guildSettingsProvider = guildSettingsProvider;
                 }
 
                 [RequireUserPermission(GuildPermission.Administrator)]
@@ -79,6 +87,151 @@ namespace Dockhound.Modules
 
                     await RespondAsync(embed: embed, ephemeral: true);
                 }
+
+                [RequireUserPermission(GuildPermission.Administrator)]
+                [SlashCommand("viewguild", "Displays current guild settings")]
+                public async Task GetGuildSettings()
+                {
+                    var cfg = await _guildSettingsProvider.GetAsync(Context.Guild.Id);
+
+                    var node = JsonSerializer.SerializeToNode(
+                        cfg,
+                        new JsonSerializerOptions { WriteIndented = true }
+                    ) as JsonObject;
+
+                    var pretty = node?.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) ?? "{}";
+
+                    // Keep embed under 4096 chars
+                    const int max = 3900; // headroom for code fences
+                    if (pretty.Length > max)
+                        pretty = pretty.Substring(0, max) + "\n... (truncated)";
+
+                    var embed = new EmbedBuilder()
+                        .WithTitle("Guild Settings")
+                        .WithDescription($"```\n{pretty}\n```")
+                        .WithColor(Color.Blue)
+                        .Build();
+
+                    await RespondAsync(embed: embed, ephemeral: true);
+                }
+
+                [RequireContext(ContextType.Guild)]
+                [RequireUserPermission(GuildPermission.Administrator)]
+                [SlashCommand("config-update", "Upload a GuildConfig JSON file to update this guild's configuration.")]
+                public async Task UpdateConfigAsync(
+                [Summary("file", "JSON file containing Dockhound GuildConfig")] IAttachment file
+                )
+                {
+                    await DeferAsync(ephemeral: true);
+
+                    var targetGuildId = Context.Guild!.Id;
+
+                    // Basic checks
+                    if (file.Size <= 0 || file.Size > 2_000_000)
+                    {
+                        await FollowupAsync("❌ The file is empty or larger than 2 MB. Please upload a valid JSON under 2 MB.", ephemeral: true);
+                        return;
+                    }
+
+                    // Download
+                    string json;
+                    try
+                    {
+                        using var stream = await _httpClient.GetStreamAsync(file.Url);
+                        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+                        json = await reader.ReadToEndAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        await FollowupAsync($"❌ Failed to download the attachment: `{ex.Message}`", ephemeral: true);
+                        return;
+                    }
+
+                    // Deserialize (case-insensitive, allow numbers-as-strings for ulongs)
+                    var deserializeOptions = new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true,
+                        NumberHandling = JsonNumberHandling.AllowReadingFromString,
+                    };
+
+                    GuildConfig? cfg;
+                    try
+                    {
+                        cfg = JsonSerializer.Deserialize<GuildConfig>(json, deserializeOptions)
+                              ?? throw new JsonException("Deserialized result was null.");
+                    }
+                    catch (JsonException jx)
+                    {
+                        await FollowupAsync($"❌ Invalid JSON for `GuildConfig`: `{jx.Message}`", ephemeral: true);
+                        return;
+                    }
+
+                    // Defensive defaults to avoid null refs
+                    cfg.SchemaVersion = cfg.SchemaVersion <= 0 ? 1 : cfg.SchemaVersion;
+                    cfg.Verify ??= new GuildConfig.VerificationSettings();
+                    cfg.Verify.RestrictedAccess ??= new GuildConfig.RestrictedAccessSettings();
+                    cfg.Verify.RecruitAssignerRoles ??= new List<ulong>();
+                    cfg.Verify.AllyAssignerRoles ??= new List<ulong>();
+                    cfg.Verify.RestrictedAccess.AlwaysRestrictRoles ??= new List<ulong>();
+                    cfg.Verify.RestrictedAccess.MemberOnlyRoles ??= new List<ulong>();
+
+                    // Persist
+                    try
+                    {
+                        await _guildSettingsProvider.UpdateAsync(
+                            targetGuildId,
+                            cfg,
+                            changedBy: $"{Context.User.Username}#{Context.User.Id}"
+                        );
+                    }
+                    catch (InvalidOperationException cex)
+                    {
+                        await FollowupAsync($"⚠️ Concurrency conflict while saving. Please retry.\n`{cex.InnerException?.Message ?? cex.Message}`", ephemeral: true);
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        await FollowupAsync($"❌ Failed to save configuration: `{ex.Message}`", ephemeral: true);
+                        return;
+                    }
+
+                    // Read-back & pretty print
+                    var saved = await _guildSettingsProvider.GetAsync(targetGuildId);
+                    var pretty = JsonSerializer.Serialize(saved, new JsonSerializerOptions
+                    {
+                        WriteIndented = true,
+                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                    });
+
+                    if (pretty.Length > 1800)
+                    {
+                        var bytes = Encoding.UTF8.GetBytes(pretty);
+                        await using var s = new MemoryStream(bytes);
+                        await FollowupWithFileAsync(s, $"guild-{targetGuildId}-config.json",
+                            text: $"✅ Updated configuration for guild `{targetGuildId}`. Here is the saved JSON:", ephemeral: true);
+                    }
+                    else
+                    {
+                        await FollowupAsync($"✅ Updated configuration for guild `{targetGuildId}`. Saved JSON:\n```json\n{pretty}\n```", ephemeral: true);
+                    }
+
+                    // --- Audit to moderation/notification channel ---
+                    if (Context.Guild != null && Context.Guild.SafetyAlertsChannel.Id is ulong modChannelId)
+                    {
+                        if (Context.Guild.GetChannel(modChannelId) is IMessageChannel modChannel)
+                        {
+                            var embed = new EmbedBuilder()
+                                .WithTitle("Configuration Updated")
+                                .WithDescription($"Guild configuration was updated by {Context.User.Mention}")
+                                .WithColor(Color.Orange)
+                                .WithCurrentTimestamp()
+                                .Build();
+
+                            await modChannel.SendMessageAsync(embed: embed);
+                        }
+                    }
+                }
+
 
                 [RequireUserPermission(GuildPermission.ViewAuditLog | GuildPermission.ManageMessages)]
                 [SlashCommand("logs-per-message", "Show all log events for a given message id over a given timespan in days")]
@@ -150,26 +303,29 @@ namespace Dockhound.Modules
             [Group("verify", "Admin root for Verify Module")]
             public class VerifyAdminSetup : InteractionModuleBase<SocketInteractionContext>
             {
-                private readonly WllTrackerContext _dbContext;
+                private readonly DockhoundContext _dbContext;
                 private readonly HttpClient _httpClient;
                 private readonly IConfiguration _configuration;
                 private readonly AppSettings _settings;
-                private readonly IAppSettingsService _appSettingsService;
+                private readonly IAppSettingsService _appSettingsService; 
+                private readonly IGuildSettingsProvider _guildSettingsProvider;
 
-                public VerifyAdminSetup(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings, IAppSettingsService appSettingsService)
+                public VerifyAdminSetup(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings, IAppSettingsService appSettingsService, IGuildSettingsProvider guildSettingsProvider)
                 {
                     _dbContext = dbContext;
                     _httpClient = httpClient;
                     _configuration = config;
                     _settings = appSettings.Value;
                     _appSettingsService = appSettingsService;
+                    _guildSettingsProvider = guildSettingsProvider;
                 }
 
                 [RequireUserPermission(GuildPermission.Administrator)]
                 [SlashCommand("info", "Provides information on the verification process.")]
                 public async Task VerifyInfo()
                 {
-                    string imageUrl = _settings.Verify.ImageUrl; //_configuration["VERIFY_IMAGEURL"];
+                    var cfg = await _guildSettingsProvider.GetAsync(Context.Guild.Id);
+                    string imageUrl = cfg.Verify.ImageUrl; //_configuration["VERIFY_IMAGEURL"];
 
                     var embed = new EmbedBuilder()
                         .WithTitle("Looking to Verify?")
@@ -205,14 +361,16 @@ namespace Dockhound.Modules
                 {
                     await DeferAsync(ephemeral: true);
 
+                    var cfg = await _guildSettingsProvider.GetAsync(Context.Guild.Id);
+
                     if (Context.Channel is not SocketTextChannel channel)
                     {
                         await FollowupAsync("This command can only be used in text channels.", ephemeral: true);
                         return;
                     }
 
-                    var membersOnlyRoles = _settings.Verify.RestrictedAccess.MemberOnlyRoles.ToSet();
-                    var alwaysDenyRoles = _settings.Verify.RestrictedAccess.AlwaysRestrictRoles.ToSet();
+                    var membersOnlyRoles = cfg.Verify.RestrictedAccess.MemberOnlyRoles.ToSet();
+                    var alwaysDenyRoles = cfg.Verify.RestrictedAccess.AlwaysRestrictRoles.ToSet();
 
                     // Active allow list: Restricted has NO whitelist; MembersOnly allows configured roles EXCEPT always-deny
                     var activeAllow = accessLevel == AccessRestriction.MembersOnly
@@ -284,7 +442,10 @@ namespace Dockhound.Modules
                     };
 
                     // Always fetch the latest stored ids
-                    var ra = _appSettingsService.GetRestrictedAccess();
+
+                    
+
+                    var ra = await _guildSettingsProvider.GetRestrictedAccessAsync(Context.Guild.Id);
                     var storedChannelId = ra.ChannelId;
                     var storedMsgId = ra.MessageId;
 
@@ -313,7 +474,7 @@ namespace Dockhound.Modules
 
                         var newBanner = await channel.SendMessageAsync(bannerContent);
 
-                        await _appSettingsService.UpdateRestrictedAccessAsync(channel.Id, newBanner.Id);
+                        await _guildSettingsProvider.UpdateRestrictedAccessAsync(Context.Guild.Id, channel.Id, newBanner.Id, Context.User.Username + "#" + Context.User.Id);
                     }
                     else
                     {
@@ -334,7 +495,7 @@ namespace Dockhound.Modules
                             }
                             catch { /* ignore */ }
 
-                            await _appSettingsService.UpdateRestrictedAccessAsync(null, null);
+                            await _guildSettingsProvider.UpdateRestrictedAccessAsync(Context.Guild.Id, null, null, Context.User.Username + "#" + Context.User.Id);
                         }
                     }
                     // ---------- end banner handling ----------

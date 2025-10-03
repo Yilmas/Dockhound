@@ -17,19 +17,17 @@ namespace Dockhound.Interactions
 {
     public class UtilityInteraction : InteractionModuleBase<SocketInteractionContext>
     {
-        private readonly WllTrackerContext _dbContext;
+        private readonly DockhoundContext _dbContext;
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
-        private readonly AppSettings _settings;
 
         private long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 
-        public UtilityInteraction(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings)
+        public UtilityInteraction(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config)
         {
             _dbContext = dbContext;
             _httpClient = httpClient;
             _configuration = config;
-            _settings = appSettings.Value;
         }
 
         [ComponentInteraction("btn-remove-bookmark:*:*:*:*")]

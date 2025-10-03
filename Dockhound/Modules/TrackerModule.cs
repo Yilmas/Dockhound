@@ -32,9 +32,9 @@ public class TrackerModule : InteractionModuleBase<SocketInteractionContext>
     [Group("tracker", "Root command of Dockhound")]
     public class TrackerSetup : InteractionModuleBase<SocketInteractionContext>
     {
-        private readonly WllTrackerContext _dbContext;
+        private readonly DockhoundContext _dbContext;
 
-        public TrackerSetup(WllTrackerContext dbContext)
+        public TrackerSetup(DockhoundContext dbContext)
         {
             _dbContext = dbContext;
         }

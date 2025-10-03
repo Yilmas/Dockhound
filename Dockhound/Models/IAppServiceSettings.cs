@@ -9,8 +9,10 @@ namespace Dockhound.Models
 {
     public interface IAppSettingsService
     {
+        [Obsolete("Warning GUILD SPECIFIC", true)]
         RestrictedAccessSettings GetRestrictedAccess();
         EnvironmentState GetCurrentEnvironment();
+        [Obsolete("Warning GUILD SPECIFIC", true)]
         Task UpdateRestrictedAccessAsync(ulong? channelId, ulong? messageId, CancellationToken ct = default);
     }
 }

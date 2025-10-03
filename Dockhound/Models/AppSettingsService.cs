@@ -28,6 +28,7 @@ namespace Dockhound.Models
             _appSettingsPath = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
         }
 
+        [Obsolete("Warning GUILD SPECIFIC", true)]
         public RestrictedAccessSettings GetRestrictedAccess()
         => _options.CurrentValue.Verify.RestrictedAccess ?? new RestrictedAccessSettings();
 
@@ -43,6 +44,7 @@ namespace Dockhound.Models
         /// <summary>
         /// Update Verify:RestrictedAccess ChannelId/MessageId in appsettings.json and reload config.
         /// </summary>
+        [Obsolete("Warning GUILD SPECIFIC", true)]
         public async Task UpdateRestrictedAccessAsync(ulong? channelId, ulong? messageId, CancellationToken ct = default)
         {
             await _gate.WaitAsync(ct);

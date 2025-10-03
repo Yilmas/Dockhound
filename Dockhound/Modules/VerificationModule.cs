@@ -1,27 +1,28 @@
-﻿using Discord.Interactions;
-using Discord;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Dockhound.Enums;
-using System.Reflection.Emit;
+﻿using Discord;
+using Discord.Interactions;
 using Discord.Rest;
+using Discord.WebSocket;
+using Dockhound.Config;
+using Dockhound.Enums;
 using Dockhound.Extensions;
 using Dockhound.Logs;
-using System.IO;
-using System.Collections;
-using System.Threading.Channels;
-using Discord.WebSocket;
-using Microsoft.VisualBasic;
+using Dockhound.Modals;
 using Dockhound.Models;
 using Microsoft.Extensions.Configuration;
-using Dockhound.Modals;
-using static Microsoft.ApplicationInsights.MetricDimensionNames.TelemetryContext;
 using Microsoft.Extensions.Options;
-using System.Runtime;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.VisualBasic;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Reflection.Emit;
+using System.Runtime;
+using System.Text;
+using System.Threading.Channels;
+using System.Threading.Tasks;
+using static Microsoft.ApplicationInsights.MetricDimensionNames.TelemetryContext;
 
 namespace Dockhound.Modules;
 
@@ -40,17 +41,17 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
     [Group("verify", "Root command of the HvL Verification Program")]
     public class VerifySetup : InteractionModuleBase<SocketInteractionContext>
     {
-        private readonly WllTrackerContext _dbContext;
+        private readonly DockhoundContext _dbContext;
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
-        private readonly AppSettings _settings;
+        private readonly IGuildSettingsProvider _guildSettingsProvider;
 
-        public VerifySetup(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings)
+        public VerifySetup(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IGuildSettingsProvider guildSettingsProvider)
         {
             _dbContext = dbContext;
             _httpClient = httpClient;
             _configuration = config;
-            _settings = appSettings.Value;
+            _guildSettingsProvider = guildSettingsProvider;
         }
 
         [SlashCommand("me", "Basic Verification")]
@@ -58,11 +59,13 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
         {
             await DeferAsync(ephemeral: true);
 
+            var cfg = await _guildSettingsProvider.GetAsync(Context.Guild.Id);
+
             long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
             
-            var reviewChannelId = _settings.Verify.ReviewChannelId; //ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out ulong reviewChannelId);
-
-            var reviewChannel = Context.Guild.GetTextChannel(reviewChannelId);
+            var reviewChannel = cfg.Verify.ReviewChannelId is ulong id
+                        ? Context.Guild.GetTextChannel(id)
+                        : null;
 
             if (reviewChannel == null)
             {

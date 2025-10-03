@@ -12,6 +12,7 @@ using Dockhound.Logs;
 using Dockhound.Models;
 using Dockhound.Modules;
 using Dockhound.Interactions;
+using Dockhound.Config;
 
 namespace Dockhound;
 
@@ -56,8 +57,11 @@ public class Program
             .AddSingleton(_configuration)
             .AddSingleton(_socketConfig)
             .AddSingleton<HttpClient>()
-            .AddDbContext<WllTrackerContext>(options => options.UseSqlServer(_configuration["Configuration:DatabaseConnectionString"])) 
+            .AddDbContextFactory<DockhoundContext>(options => options.UseSqlServer(_configuration["Configuration:DatabaseConnectionString"])) 
+            .AddMemoryCache()
+            .Configure<GuildDefaults>(p => p.Value = new GuildConfig())
             .AddSingleton<IAppSettingsService, AppSettingsService>()
+            .AddSingleton<IGuildSettingsProvider, GuildSettingsProvider>()
             .AddSingleton<DiscordSocketClient>()
             .AddSingleton(x => new InteractionService(x.GetRequiredService<DiscordSocketClient>(), _interactionServiceConfig))
             .AddSingleton<InteractionHandler>();
@@ -96,7 +100,7 @@ public class Program
             if (args.ExceptionObject is Exception ex)
             {
                 await using var scope = _services.CreateAsyncScope();
-                var dbContext = scope.ServiceProvider.GetRequiredService<WllTrackerContext>();
+                var dbContext = scope.ServiceProvider.GetRequiredService<DockhoundContext>();
 
                 await ExceptionHandler.HandleExceptionAsync(ex, dbContext, "Unhandled global exception");
             }

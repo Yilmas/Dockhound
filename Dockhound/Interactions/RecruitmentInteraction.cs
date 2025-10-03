@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using Dockhound.Config;
 using Dockhound.Logs;
 using Dockhound.Modals;
 using Dockhound.Models;
@@ -11,19 +12,19 @@ namespace Dockhound.Interactions
 {
     public class RecruitmentInteraction : InteractionModuleBase<SocketInteractionContext>
     {
-        private readonly WllTrackerContext _dbContext;
+        private readonly DockhoundContext _dbContext;
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
-        private readonly AppSettings _settings;
+        private readonly IGuildSettingsProvider _guildSettingsProvider;
 
         private long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 
-        public RecruitmentInteraction(WllTrackerContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings)
+        public RecruitmentInteraction(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IGuildSettingsProvider guildSettingsProvider)
         {
             _dbContext = dbContext;
             _httpClient = httpClient;
             _configuration = config;
-            _settings = appSettings.Value;
+            _guildSettingsProvider = guildSettingsProvider;
         }
 
         [UserCommand("Request Recruit")]
@@ -31,6 +32,8 @@ namespace Dockhound.Interactions
         {
             if (Context.Guild is null)
                 return;
+
+            var cfg = await _guildSettingsProvider.GetAsync(Context.Guild.Id);
 
             var guild = Context.Guild;
             var acting = guild.GetUser(Context.User.Id);
@@ -40,7 +43,7 @@ namespace Dockhound.Interactions
                 return;
 
             // Permission gate: self OR has any allowed role
-            var allowedRoleIds = _settings.Verify.RecruitAssignerRoles?.ToHashSet() ?? new HashSet<ulong>();
+            var allowedRoleIds = cfg.Verify.RecruitAssignerRoles?.ToHashSet() ?? new HashSet<ulong>();
 
 
             bool isSelf = acting.Id == target.Id;
@@ -55,7 +58,10 @@ namespace Dockhound.Interactions
             //if (!ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out var reviewChannelId))
             //    return;
 
-            var reviewChannel = guild.GetTextChannel(_settings.Verify.ReviewChannelId);
+            var reviewChannel = cfg.Verify.ReviewChannelId is ulong id
+                ? guild.GetTextChannel(id)
+                : null;
+
             if (reviewChannel is null)
                 return;
 

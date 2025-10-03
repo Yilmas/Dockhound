@@ -46,7 +46,7 @@ namespace Dockhound.Logs
             return events;
         }
 
-        public static async Task<List<LogEvent>> LookupLogEventsAsync(WllTrackerContext dbContext, string query = null, DateTime? startDate = null, DateTime? endDate = null)
+        public static async Task<List<LogEvent>> LookupLogEventsAsync(DockhoundContext dbContext, string query = null, DateTime? startDate = null, DateTime? endDate = null)
         {
             return await dbContext.Set<LogEvent>()
                 .AsQueryable()
