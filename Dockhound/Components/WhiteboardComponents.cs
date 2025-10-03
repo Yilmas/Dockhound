@@ -35,11 +35,43 @@ namespace Dockhound.Components
             var header = $"**{title}**";
             var body = string.IsNullOrWhiteSpace(content) ? "\u200b" : content;
 
+            var unix = new DateTimeOffset(editedUtc).ToUnixTimeSeconds();
+
             var footer = clonedFrom is { } src
-                ? $"_WB-{wbId} • v{versionIndex} • Cloned from WB-{src.srcWbId} v{src.srcVerIdx}_"
-                : $"_WB-{wbId} • v{versionIndex} • Created by <@{editorId}> • {editedUtc:yyyy-MM-dd HH:mm} UTC_";
+                ? $"_v{versionIndex} • Cloned from WB-{src.srcWbId} v{src.srcVerIdx}_"
+                : $"_v{versionIndex} • Created by <@{editorId}> • <t:{unix}:R>_";
 
             return $"{header}\n{body}\n\n{footer}";
+        }
+
+        /// <summary>
+        /// Builds the display text for a whiteboard embed.
+        /// </summary>
+        public static Embed BuildEmbed(string title, string content, long wbId, int versionIndex, ulong editorId, DateTime editedUtc, (long srcWbId, int srcVerIdx)? clonedFrom = null)
+        {
+            var eb = new EmbedBuilder()
+            .WithTitle(title)
+            .WithColor(Color.DarkTeal);
+
+            var body = string.IsNullOrWhiteSpace(content) ? "_(empty)_" : content;
+
+            string meta;
+
+            if (clonedFrom is { } src)
+            {
+                meta = $"\n\n_v{versionIndex} • Cloned from WB-{src.srcWbId} v{src.srcVerIdx}_";
+            }
+            else
+            {
+                var unix = new DateTimeOffset(editedUtc).ToUnixTimeSeconds();
+                meta = $"\n\n_v{versionIndex} • Edited by <@{editorId}> • <t:{unix}:R>_";
+            }
+
+            eb.Description = $"{body}{meta}";
+
+            eb.WithFooter("Brought to you by Dockhound");
+
+            return eb.Build();
         }
     }
 }

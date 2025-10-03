@@ -56,18 +56,17 @@ namespace Dockhound.Modules
                 await _db.SaveChangesAsync();
 
                 // Post the persistent message
-                var content = WhiteboardComponents.BuildMessage(
-                    title: wb.Title,
-                    content: string.Empty,
-                    wbId: wb.Id,
-                    versionIndex: 1,
-                    editorId: Context.User.Id,
-                    editedUtc: wb.CreatedUtc
+                var embed = WhiteboardComponents.BuildEmbed(
+                    wb.Title,
+                    string.Empty,
+                    wb.Id,
+                    1,
+                    Context.User.Id,
+                    wb.CreatedUtc
                 );
 
-                var components = WhiteboardComponents.BuildComponents(wb.Id, historyEnabled: true);
-
-                var msg = await Context.Channel.SendMessageAsync(content, components: components);
+                var msg = await Context.Channel.SendMessageAsync(embed: embed,
+                    components: WhiteboardComponents.BuildComponents(wb.Id, historyEnabled: true));
                 wb.MessageId = msg.Id;
                 await _db.SaveChangesAsync();
 
@@ -100,9 +99,11 @@ namespace Dockhound.Modules
 
             [SlashCommand("mode", "Change the privacy mode of a whiteboard")]
             public async Task ModeAsync(
-            [Summary(description: "Whiteboard message ID")] ulong messageId,
+            [Summary(description: "Whiteboard message ID")] string messageId,
             AccessRestriction mode)
             {
+                ulong.TryParse(messageId, out ulong messageIdUlong);
+
                 var caller = (IGuildUser)Context.User;
                 if (!caller.GuildPermissions.ManageChannels)
                 {
@@ -113,7 +114,7 @@ namespace Dockhound.Modules
                 var wb = await _db.Whiteboards
                     .Include(w => w.Roles)
                     .Include(w => w.Versions)
-                    .FirstOrDefaultAsync(w => w.MessageId == messageId && w.GuildId == Context.Guild.Id);
+                    .FirstOrDefaultAsync(w => w.MessageId == messageIdUlong && w.GuildId == Context.Guild.Id);
 
                 if (wb is null)
                 {
@@ -129,7 +130,7 @@ namespace Dockhound.Modules
                     wb.Roles.Clear();
                     await _db.SaveChangesAsync();
 
-                    await RespondAsync($"Mode for message `{messageId}` set to **{mode}**.", ephemeral: true);
+                    await RespondAsync($"Mode for message `{messageIdUlong}` set to **{mode}**.", ephemeral: true);
                     return;
                 }
 
@@ -137,7 +138,7 @@ namespace Dockhound.Modules
                 await _db.SaveChangesAsync(); // persist mode change before selection
 
                 var roleMenu = new SelectMenuBuilder()
-                    .WithCustomId($"wb:roles:{messageId}")
+                    .WithCustomId($"wb:roles:{messageIdUlong}")
                     .WithPlaceholder("Select allowed roles…")
                     .WithType(ComponentType.RoleSelect)
                     .WithMinValues(1)
@@ -152,8 +153,10 @@ namespace Dockhound.Modules
             }
 
             [SlashCommand("roles", "Set or update allowed roles for a MembersOnly whiteboard")]
-            public async Task RolesAsync([Summary(description: "Whiteboard message ID")] ulong messageId)
+            public async Task RolesAsync([Summary(description: "Whiteboard message ID")] string messageId)
             {
+                ulong.TryParse(messageId, out ulong messageIdUlong);
+
                 var caller = (IGuildUser)Context.User;
                 if (!caller.GuildPermissions.ManageChannels)
                 {
@@ -162,7 +165,7 @@ namespace Dockhound.Modules
                 }
 
                 var wb = await _db.Whiteboards
-                    .FirstOrDefaultAsync(w => w.MessageId == messageId && w.GuildId == Context.Guild.Id);
+                    .FirstOrDefaultAsync(w => w.MessageId == messageIdUlong && w.GuildId == Context.Guild.Id);
 
                 if (wb is null)
                 {
@@ -189,12 +192,14 @@ namespace Dockhound.Modules
 
             [SlashCommand("info", "Show details about a whiteboard")]
             public async Task InfoAsync(
-                [Summary(description: "Whiteboard message ID")] ulong messageId)
+                [Summary(description: "Whiteboard message ID")] string messageId)
             {
+                ulong.TryParse(messageId, out ulong messageIdUlong);
+
                 var wb = await _db.Whiteboards
                     .Include(w => w.Roles)
                     .Include(w => w.Versions)
-                    .FirstOrDefaultAsync(w => w.MessageId == messageId && w.GuildId == Context.Guild.Id);
+                    .FirstOrDefaultAsync(w => w.MessageId == messageIdUlong && w.GuildId == Context.Guild.Id);
 
                 if (wb is null)
                 {
@@ -237,7 +242,11 @@ namespace Dockhound.Modules
                     var last5 = wb.Versions
                         .OrderByDescending(v => v.VersionIndex)
                         .Take(5)
-                        .Select(v => $"v{v.VersionIndex}: {v.PercentChanged}% by <@{v.EditorId}> ({v.EditedUtc:yyyy-MM-dd HH:mm} UTC)")
+                        .Select(v =>
+                        {
+                            var unix = new DateTimeOffset(v.EditedUtc).ToUnixTimeSeconds();
+                            return $"v{v.VersionIndex}: {v.PercentChanged}% by <@{v.EditorId}> (<t:{unix}:R>)";
+                        })
                         .ToList();
 
                     if (last5.Count > 0)
@@ -245,6 +254,79 @@ namespace Dockhound.Modules
                 }
 
                 await RespondAsync(embed: eb.Build(), ephemeral: true);
+            }
+
+            [SlashCommand("archive", "Toggle archive on a whiteboard (close/open)")]
+            public async Task ArchiveAsync([Summary(description: "Whiteboard message ID")] string messageId)
+            {
+                ulong.TryParse(messageId, out ulong messageIdUlong);
+
+                var caller = (IGuildUser)Context.User;
+                if (!caller.GuildPermissions.ManageChannels)
+                {
+                    await RespondAsync("You need **Manage Channels** to archive/unarchive a whiteboard.", ephemeral: true);
+                    return;
+                }
+
+                var wb = await _db.Whiteboards
+                    .Include(w => w.Versions)
+                    .FirstOrDefaultAsync(w => w.MessageId == messageIdUlong && w.GuildId == Context.Guild.Id);
+
+                if (wb is null)
+                {
+                    await RespondAsync("Whiteboard not found for that message.", ephemeral: true);
+                    return;
+                }
+
+                // Toggle state
+                wb.IsArchived = !wb.IsArchived;
+
+                // Title: add/remove [ARCHIVED]
+                string title = wb.Title;
+                const string archivedTag = "🔒 ";
+                if (wb.IsArchived)
+                {
+                    if (!title.StartsWith(archivedTag, StringComparison.OrdinalIgnoreCase))
+                        title = archivedTag + title;
+                }
+                else
+                {
+                    if (title.StartsWith(archivedTag, StringComparison.OrdinalIgnoreCase))
+                        title = title.Substring(archivedTag.Length);
+                }
+                wb.Title = title;
+
+                await _db.SaveChangesAsync();
+
+                // Rebuild embed with current content + new title
+                var latest = wb.Versions.OrderByDescending(v => v.VersionIndex).FirstOrDefault();
+                var embed = WhiteboardComponents.BuildEmbed(
+                    title: wb.Title,
+                    content: latest?.Content ?? string.Empty,
+                    wbId: wb.Id,
+                    versionIndex: latest?.VersionIndex ?? 1,
+                    editorId: latest?.EditorId ?? wb.CreatedById,
+                    editedUtc: latest?.EditedUtc ?? wb.CreatedUtc
+                );
+
+                // Update the original message: clear or restore components
+                if (await Context.Client.GetChannelAsync(wb.ChannelId) is IMessageChannel ch &&
+                    await ch.GetMessageAsync(wb.MessageId) is IUserMessage msg)
+                {
+                    await msg.ModifyAsync(m =>
+                    {
+                        m.Embed = embed;
+                        m.Components = wb.IsArchived
+                            ? new ComponentBuilder().Build() // remove buttons
+                            : WhiteboardComponents.BuildComponents(wb.Id, historyEnabled: true);
+                    });
+                }
+
+                await RespondAsync(
+                    wb.IsArchived
+                        ? $"Whiteboard **{wb.Title}** archived."
+                        : $"Whiteboard **{wb.Title}** unarchived.",
+                    ephemeral: true);
             }
         }
     }
