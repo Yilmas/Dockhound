@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using Dockhound.Config;
 using Dockhound.Logs;
 using Dockhound.Modals;
 using Dockhound.Models;
@@ -19,16 +20,16 @@ namespace Dockhound.Interactions
         private readonly DockhoundContext _dbContext;
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
-        private readonly AppSettings _settings;
+        private readonly IGuildSettingsProvider _guildSettingsProvider;
 
         private long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 
-        public VerificationInteraction(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings)
+        public VerificationInteraction(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IGuildSettingsProvider guildSettingsProvider)
         {
             _dbContext = dbContext;
             _httpClient = httpClient;
             _configuration = config;
-            _settings = appSettings.Value;
+            _guildSettingsProvider = guildSettingsProvider;
         }
 
         // APPROVE
@@ -37,6 +38,8 @@ namespace Dockhound.Interactions
         {
             var comp = (SocketMessageComponent)Context.Interaction;
             var guild = Context.Guild;
+
+            var cfg = await _guildSettingsProvider.GetAsync(Context.Guild.Id);
 
             var embed = comp.Message.Embeds.FirstOrDefault()?.ToEmbedBuilder();
             if (embed == null) 
@@ -55,7 +58,13 @@ namespace Dockhound.Interactions
                 return;
 
             //_ = ulong.TryParse(_configuration["CHANNEL_VERIFY_NOTIFICATION"], out var notificationChannelId);
-            var notificationChannel = guild?.GetTextChannel(_settings.Verify.NotificationChannelId);
+
+            var notificationChannel = cfg.Verify.NotificationChannelId is ulong id
+                        ? guild.GetTextChannel(id)
+                        : null;
+
+            if (notificationChannel is null)
+                return;
 
             await DeferAsync(ephemeral: true);
 
@@ -72,20 +81,20 @@ namespace Dockhound.Interactions
                 m.Components = new ComponentBuilder().Build();
             });
 
-            // Optional DM + faction-secure channel mention
             try
             {
-                ulong factionSecureComms = 0;
                 var faction = factionField.Value?.ToString();
 
-                if (string.Equals(faction, "Colonial", StringComparison.OrdinalIgnoreCase))
-                    factionSecureComms = _settings.Verify.ColonialSecureChannelId;
-                //_ = ulong.TryParse(_configuration["CHANNEL_FACTION_COLONIAL_SECURE"], out factionSecureComms);
-                else if (string.Equals(faction, "Warden", StringComparison.OrdinalIgnoreCase))
-                    factionSecureComms = _settings.Verify.WardenSecureChannelId;
-                //_ = ulong.TryParse(_configuration["CHANNEL_FACTION_WARDEN_SECURE"], out factionSecureComms);
+                var factionSecureChannel = faction?.Trim().ToLowerInvariant() switch
+                {
+                    "colonial" => cfg.Verify.ColonialSecureChannelId is ulong colonialId ? guild.GetTextChannel(colonialId) : null,
+                    "warden" => cfg.Verify.WardenSecureChannelId is ulong wardenId ? guild.GetTextChannel(wardenId) : null,
+                    _ => null
+                };
 
-                var factionSecureChannel = guild?.GetTextChannel(factionSecureComms);
+                if (factionSecureChannel is null)
+                    return;
+
                 await user.SendMessageAsync(
                     $"✅ Your HvL verification has been approved! 🎉 " +
                     (factionSecureChannel != null
@@ -97,10 +106,6 @@ namespace Dockhound.Interactions
             {
                 Console.WriteLine($"[ERROR] Failed to send a DM to {user.Username}. They may have DMs disabled.");
             }
-
-            // Optional: notify channel
-            // if (notificationChannel != null)
-            //     await notificationChannel.SendMessageAsync($"{user.Mention}, your verification has been approved!");
 
             // Log
             try
@@ -153,6 +158,8 @@ namespace Dockhound.Interactions
             if (guild is null)
                 return;
 
+            var cfg = await _guildSettingsProvider.GetAsync(Context.Guild.Id);
+
             // SocketGuild uses cached sync getters
             var user = guild.GetUser(userId);
             if (user is null)
@@ -161,7 +168,10 @@ namespace Dockhound.Interactions
             //if (!ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out var reviewChannelId))
             //    return;
 
-            var verificationChannel = guild.GetTextChannel(_settings.Verify.ReviewChannelId);
+            var verificationChannel = cfg.Verify.ReviewChannelId is ulong id
+                        ? guild.GetTextChannel(id)
+                        : null;
+
             if (verificationChannel is null)
                 return;
 

@@ -10,21 +10,44 @@ public partial class DockhoundContext : DbContext
     public DbSet<LogEvent> LogEvents { get; set; } = null!;
     public DbSet<LogError> LogErrors { get; set; } = null!;
 
+    public DbSet<Guild> Guilds => Set<Guild>();
+    public DbSet<GuildSettings> GuildSettings => Set<GuildSettings>();
+    public DbSet<GuildSettingsHistory> GuildSettingsHistories => Set<GuildSettingsHistory>();
+
     public DockhoundContext() {}
 
     public DockhoundContext(DbContextOptions<DockhoundContext> options) : base(options) { }
 
-    //protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    //{
-    //    if (!optionsBuilder.IsConfigured)
-    //    {
-    //        optionsBuilder.UseSqlServer("Server=10.200.1.4;User ID=wll_yilmas;Password=JyC&7BEuqaSxCpW;Database=wll_tracker;Trusted_Connection=False;TrustServerCertificate=true;");
-    //    }
-    //}
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         OnModelCreatingPartial(modelBuilder);
+
+        modelBuilder.Entity<Guild>(e =>
+        {
+            e.HasKey(x => x.GuildId);
+            e.Property(x => x.GuildId).ValueGeneratedNever();
+            e.HasOne(x => x.Settings)
+             .WithOne(x => x.Guild)
+             .HasForeignKey<GuildSettings>(x => x.GuildId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GuildSettings>(e =>
+        {
+            e.HasKey(x => x.GuildId);
+            e.Property(x => x.SchemaVersion).IsRequired();
+            e.Property(x => x.Json).IsRequired().HasColumnType("nvarchar(max)");
+            e.Property(x => x.RowVersion)
+             .IsRowVersion()
+             .IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<GuildSettingsHistory>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Json).IsRequired().HasColumnType("nvarchar(max)");
+            e.HasIndex(x => x.GuildId);
+        });
     }
 
     partial void OnModelCreatingPartial(ModelBuilder modelBuilder);

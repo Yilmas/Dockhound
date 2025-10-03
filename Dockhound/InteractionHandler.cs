@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using Dockhound.Config;
 using Dockhound.Enums;
 using Dockhound.Logs;
 using Dockhound.Modals;

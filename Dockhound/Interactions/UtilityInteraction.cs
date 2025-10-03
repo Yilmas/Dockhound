@@ -20,16 +20,14 @@ namespace Dockhound.Interactions
         private readonly DockhoundContext _dbContext;
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
-        private readonly AppSettings _settings;
 
         private long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 
-        public UtilityInteraction(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings)
+        public UtilityInteraction(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config)
         {
             _dbContext = dbContext;
             _httpClient = httpClient;
             _configuration = config;
-            _settings = appSettings.Value;
         }
 
         [ComponentInteraction("btn-remove-bookmark:*:*:*:*")]

@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using Dockhound.Config;
 using Dockhound.Logs;
 using Dockhound.Modals;
 using Dockhound.Models;
@@ -14,16 +15,16 @@ namespace Dockhound.Interactions
         private readonly DockhoundContext _dbContext;
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
-        private readonly AppSettings _settings;
+        private readonly IGuildSettingsProvider _guildSettingsProvider;
 
         private long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 
-        public AllyInteraction(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings)
+        public AllyInteraction(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IGuildSettingsProvider guildSettingsProvider)
         {
             _dbContext = dbContext;
             _httpClient = httpClient;
             _configuration = config;
-            _settings = appSettings.Value;
+            _guildSettingsProvider = guildSettingsProvider;
         }
 
         // REQUEST ALLY
@@ -33,6 +34,8 @@ namespace Dockhound.Interactions
             if (Context.Guild is null)
                 return;
 
+            var cfg = await _guildSettingsProvider.GetAsync(Context.Guild.Id);
+
             var guild = Context.Guild;
             var acting = guild.GetUser(Context.User.Id);
             var target = guild.GetUser(targetUser.Id);
@@ -41,7 +44,7 @@ namespace Dockhound.Interactions
                 return;
 
             // --- Permission gate: self OR has any allowed role ---
-            var allowedRoleIds = _settings.Verify.AllyAssignerRoles?.ToHashSet() ?? new HashSet<ulong>();
+            var allowedRoleIds = cfg.Verify.AllyAssignerRoles?.ToHashSet() ?? new HashSet<ulong>();
 
             bool isSelf = acting.Id == target.Id;
             bool hasPrivilege = acting.Roles.Any(r => allowedRoleIds.Contains(r.Id));
@@ -56,7 +59,10 @@ namespace Dockhound.Interactions
             //if (!ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out var reviewChannelId))
             //    return;
 
-            var reviewChannel = guild.GetTextChannel(_settings.Verify.ReviewChannelId);
+            var reviewChannel = cfg.Verify.ReviewChannelId is ulong id
+                        ? guild.GetTextChannel(id)
+                        : null;
+
             if (reviewChannel is null)
                 return;
 
@@ -231,7 +237,11 @@ namespace Dockhound.Interactions
                 //if (!ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out var reviewChannelId))
                 //    return;
 
-                var reviewChannel = guild.GetTextChannel(_settings.Verify.ReviewChannelId);
+                var cfg = await _guildSettingsProvider.GetAsync(Context.Guild.Id);
+                var reviewChannel = cfg.Verify.ReviewChannelId is ulong id
+                        ? guild.GetTextChannel(id)
+                        : null;
+
                 reviewMessage = await reviewChannel?.GetMessageAsync(messageId) as IUserMessage;
             }
 
