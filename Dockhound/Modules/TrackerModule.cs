@@ -17,24 +17,15 @@ using Dockhound.Models;
 
 namespace Dockhound.Modules;
 
-public class TrackerModule : InteractionModuleBase<SocketInteractionContext>
+public partial class DockModule
 {
-    public InteractionService Commands { get; set; }
-
-    private InteractionHandler _handler;
-
-    public TrackerModule(InteractionHandler handler)
-    {
-        _handler = handler;
-    }
-
     [CommandContextType(InteractionContextType.Guild)]
-    [Group("tracker", "Root command of Dockhound")]
-    public class TrackerSetup : InteractionModuleBase<SocketInteractionContext>
+    [Group("tracker", "Tracker options in Dockhound")]
+    public class TrackerModule : InteractionModuleBase<SocketInteractionContext>
     {
         private readonly DockhoundContext _dbContext;
 
-        public TrackerSetup(DockhoundContext dbContext)
+        public TrackerModule(DockhoundContext dbContext)
         {
             _dbContext = dbContext;
         }
@@ -61,7 +52,7 @@ public class TrackerModule : InteractionModuleBase<SocketInteractionContext>
                     .WithButton(label: "Edit Container Count", "btn-container-count", style: ButtonStyle.Secondary);
 
                 await RespondAsync(embed: embed.Build(), components: builder.Build());
-                
+
                 try
                 {
                     var msg = await GetOriginalResponseAsync();

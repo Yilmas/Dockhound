@@ -6,6 +6,7 @@ using Dockhound.Enums;
 using Dockhound.Extensions;
 using Dockhound.Logs;
 using Dockhound.Models;
+using Dockhound.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
@@ -39,12 +40,14 @@ namespace Dockhound.Modules
                 private readonly AppSettings _settings;
                 private readonly IOptionsMonitor<AppSettings> _monitorSettings;
                 private readonly IAppSettingsService _appSettingsService;
-                private readonly IGuildSettingsProvider _guildSettingsProvider;
+                private readonly IGuildSettingsService _guildSettingsService;
+                private readonly IDbContextFactory<DockhoundContext> _dbFactory;
 
                 public DockSettings(DockhoundContext dbContext, HttpClient httpClient, 
                                     IConfiguration config, IOptions<AppSettings> appSettings, 
                                     IOptionsMonitor<AppSettings> monitorSettings, IAppSettingsService appSettingsService, 
-                                    IGuildSettingsProvider guildSettingsProvider)
+                                    IGuildSettingsService guildSettingsService,
+                                    IDbContextFactory<DockhoundContext> dbFactory)
                 {
                     _dbContext = dbContext;
                     _httpClient = httpClient;
@@ -52,7 +55,8 @@ namespace Dockhound.Modules
                     _settings = appSettings.Value;
                     _appSettingsService = appSettingsService;
                     _monitorSettings = monitorSettings;
-                    _guildSettingsProvider = guildSettingsProvider;
+                    _guildSettingsService = guildSettingsService;
+                    _dbFactory = dbFactory;
                 }
 
                 [RequireUserPermission(GuildPermission.Administrator)]
@@ -92,7 +96,7 @@ namespace Dockhound.Modules
                 [SlashCommand("viewguild", "Displays current guild settings")]
                 public async Task GetGuildSettings()
                 {
-                    var cfg = await _guildSettingsProvider.GetAsync(Context.Guild.Id);
+                    var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
 
                     var node = JsonSerializer.SerializeToNode(
                         cfg,
@@ -178,7 +182,7 @@ namespace Dockhound.Modules
                     // Persist
                     try
                     {
-                        await _guildSettingsProvider.UpdateAsync(
+                        await _guildSettingsService.UpdateAsync(
                             targetGuildId,
                             cfg,
                             changedBy: $"{Context.User.Username}#{Context.User.Id}"
@@ -196,7 +200,7 @@ namespace Dockhound.Modules
                     }
 
                     // Read-back & pretty print
-                    var saved = await _guildSettingsProvider.GetAsync(targetGuildId);
+                    var saved = await _guildSettingsService.GetAsync(targetGuildId);
                     var pretty = JsonSerializer.Serialize(saved, new JsonSerializerOptions
                     {
                         WriteIndented = true,
@@ -232,6 +236,59 @@ namespace Dockhound.Modules
                     }
                 }
 
+                
+                [RequireContext(ContextType.Guild)]
+                [RequireUserPermission(GuildPermission.Administrator)]
+                [SlashCommand("guild-update", "Update this guild's name and tag.")]
+                public async Task UpdateGuildAsync(
+                [Summary("name", "New name of the guild")] string? name = null,
+                [Summary("tag", "Short tag/identifier for the guild")] string? tag = null)
+                {
+                    await DeferAsync(ephemeral: true);
+
+                    if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(tag))
+                    {
+                        await FollowupAsync("❌ You must specify at least one of `name` or `tag`.", ephemeral: true);
+                        return;
+                    }
+
+                    await using var db = await _dbFactory.CreateDbContextAsync();
+                    var guildId = Context.Guild.Id;
+
+                    var guild = await db.Guilds.FirstOrDefaultAsync(g => g.GuildId == guildId);
+                    if (guild is null)
+                    {
+                        guild = new Guild { GuildId = guildId, CreatedAtUtc = DateTime.UtcNow };
+                        db.Guilds.Add(guild);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(name))
+                        guild.Name = name;
+
+                    if (!string.IsNullOrWhiteSpace(tag))
+                        guild.Tag = tag;
+
+                    try
+                    {
+                        await db.SaveChangesAsync();
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        await FollowupAsync($"❌ Failed to update guild info: {ex.InnerException?.Message ?? ex.Message}", ephemeral: true);
+                        return;
+                    }
+
+                    var embed = new EmbedBuilder()
+                        .WithTitle("✅ Guild Updated")
+                        .WithColor(Color.Green)
+                        .AddField("Name", string.IsNullOrWhiteSpace(guild.Name) ? "-" : guild.Name, inline: true)
+                        .AddField("Tag", string.IsNullOrWhiteSpace(guild.Tag) ? "-" : guild.Tag, inline: true)
+                        .WithFooter($"Updated by {Context.User}")
+                        .WithCurrentTimestamp()
+                        .Build();
+
+                    await FollowupAsync(embed: embed, ephemeral: true);
+                }
 
                 [RequireUserPermission(GuildPermission.ViewAuditLog | GuildPermission.ManageMessages)]
                 [SlashCommand("logs-per-message", "Show all log events for a given message id over a given timespan in days")]
@@ -308,23 +365,23 @@ namespace Dockhound.Modules
                 private readonly IConfiguration _configuration;
                 private readonly AppSettings _settings;
                 private readonly IAppSettingsService _appSettingsService; 
-                private readonly IGuildSettingsProvider _guildSettingsProvider;
+                private readonly IGuildSettingsService _guildSettingsService;
 
-                public VerifyAdminSetup(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings, IAppSettingsService appSettingsService, IGuildSettingsProvider guildSettingsProvider)
+                public VerifyAdminSetup(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IOptions<AppSettings> appSettings, IAppSettingsService appSettingsService, IGuildSettingsService guildSettingsService)
                 {
                     _dbContext = dbContext;
                     _httpClient = httpClient;
                     _configuration = config;
                     _settings = appSettings.Value;
                     _appSettingsService = appSettingsService;
-                    _guildSettingsProvider = guildSettingsProvider;
+                    _guildSettingsService = guildSettingsService;
                 }
 
                 [RequireUserPermission(GuildPermission.Administrator)]
                 [SlashCommand("info", "Provides information on the verification process.")]
                 public async Task VerifyInfo()
                 {
-                    var cfg = await _guildSettingsProvider.GetAsync(Context.Guild.Id);
+                    var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
                     string imageUrl = cfg.Verify.ImageUrl; //_configuration["VERIFY_IMAGEURL"];
 
                     var embed = new EmbedBuilder()
@@ -361,7 +418,7 @@ namespace Dockhound.Modules
                 {
                     await DeferAsync(ephemeral: true);
 
-                    var cfg = await _guildSettingsProvider.GetAsync(Context.Guild.Id);
+                    var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
 
                     if (Context.Channel is not SocketTextChannel channel)
                     {
@@ -431,13 +488,15 @@ namespace Dockhound.Modules
                         }
                     }
 
+                    var displayName = await _guildSettingsService.GetGuildDisplayNameAsync(Context.Guild.Id) ?? "";
+
                     // ---------- Banner handling ----------
                     string? bannerContent = accessLevel switch
                     {
                         AccessRestriction.Restricted =>
                             "## 🔒 Verification is **Restricted**\nNo verification is allowed at this time!",
                         AccessRestriction.MembersOnly =>
-                            "## :warning: Pre-Verification is set to **Members Only**\nOnly HvL regiment members can verify.",
+                            $"## :warning: Pre-Verification is set to **Members Only**\nOnly {displayName} regiment members can verify.",
                         AccessRestriction.Open => null
                     };
 
@@ -445,7 +504,7 @@ namespace Dockhound.Modules
 
                     
 
-                    var ra = await _guildSettingsProvider.GetRestrictedAccessAsync(Context.Guild.Id);
+                    var ra = await _guildSettingsService.GetRestrictedAccessAsync(Context.Guild.Id);
                     var storedChannelId = ra.ChannelId;
                     var storedMsgId = ra.MessageId;
 
@@ -474,7 +533,7 @@ namespace Dockhound.Modules
 
                         var newBanner = await channel.SendMessageAsync(bannerContent);
 
-                        await _guildSettingsProvider.UpdateRestrictedAccessAsync(Context.Guild.Id, channel.Id, newBanner.Id, Context.User.Username + "#" + Context.User.Id);
+                        await _guildSettingsService.UpdateRestrictedAccessAsync(Context.Guild.Id, channel.Id, newBanner.Id, Context.User.Username + "#" + Context.User.Id);
                     }
                     else
                     {
@@ -495,7 +554,7 @@ namespace Dockhound.Modules
                             }
                             catch { /* ignore */ }
 
-                            await _guildSettingsProvider.UpdateRestrictedAccessAsync(Context.Guild.Id, null, null, Context.User.Username + "#" + Context.User.Id);
+                            await _guildSettingsService.UpdateRestrictedAccessAsync(Context.Guild.Id, null, null, Context.User.Username + "#" + Context.User.Id);
                         }
                     }
                     // ---------- end banner handling ----------

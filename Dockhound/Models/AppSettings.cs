@@ -7,11 +7,6 @@ using System.Threading.Tasks;
 
 namespace Dockhound.Models
 {
-    //public class RootConfig
-    //{
-    //    public AppSettings AppSettings { get; set; }
-    //}
-
     public class AppSettings
     {
         public BotConfiguration Configuration { get; set; }
