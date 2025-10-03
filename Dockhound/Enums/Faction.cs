@@ -8,7 +8,7 @@ namespace Dockhound.Enums
 {
     public enum Faction
     {
-        Colonial,
-        Warden
+        Colonial = 0,
+        Warden = 1
     }
 }

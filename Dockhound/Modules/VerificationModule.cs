@@ -8,6 +8,7 @@ using Dockhound.Extensions;
 using Dockhound.Logs;
 using Dockhound.Modals;
 using Dockhound.Models;
+using Dockhound.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -38,20 +39,22 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
     }
 
     [CommandContextType(InteractionContextType.Guild)]
-    [Group("verify", "Root command of the HvL Verification Program")]
+    [Group("verify", "Root command of the Verification Program")]
     public class VerifySetup : InteractionModuleBase<SocketInteractionContext>
     {
         private readonly DockhoundContext _dbContext;
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
         private readonly IGuildSettingsProvider _guildSettingsProvider;
+        private readonly IVerificationHistoryService _verificationHistory;
 
-        public VerifySetup(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IGuildSettingsProvider guildSettingsProvider)
+        public VerifySetup(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IGuildSettingsProvider guildSettingsProvider, IVerificationHistoryService verificationHistoryService)
         {
             _dbContext = dbContext;
             _httpClient = httpClient;
             _configuration = config;
             _guildSettingsProvider = guildSettingsProvider;
+            _verificationHistory = verificationHistoryService;
         }
 
         [SlashCommand("me", "Basic Verification")]
@@ -76,13 +79,23 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
             using var response = await _httpClient.GetAsync(file.Url);
             response.EnsureSuccessStatusCode();
             await using var stream = new MemoryStream(await response.Content.ReadAsByteArrayAsync());
-            
+
+            var history = await _verificationHistory.GetTrackRecordAsync(Context.User.Id);
+            var lastFaction = await _verificationHistory.GetMostRecentFactionAsync(Context.User.Id);
+
+            string track = history.Count == 0
+                ? "_No previous approvals._"
+                : string.Join("\n", history.Select(h =>
+                    $"• {h.Faction} — <t:{new DateTimeOffset(h.ApprovedAtUtc).ToUnixTimeSeconds()}:R>"));
+
+
             var embed = new EmbedBuilder()
                 .WithTitle("New Verification Submission")
                 .WithDescription($"A verification has been submitted by {Context.Guild.GetUser(Context.User.Id).DisplayName} - ({Context.User.Mention})")
                 .AddField("Faction", faction, true)
                 .AddField("User ID", Context.User.Id.ToString(), true)
                 .AddField("Roles to be granted", DiscordRolesList.GetDeltaRoleMentions(Context.Guild.GetUser(Context.User.Id), faction.ToString()), false)
+                .AddField("Faction history (last 5)", track, inline:false)
                 .WithColor(faction == Faction.Colonial ? Color.DarkGreen : Color.DarkBlue)
                 .WithCurrentTimestamp()
                 .WithFooter("Awaiting Approval")

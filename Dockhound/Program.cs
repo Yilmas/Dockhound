@@ -13,6 +13,7 @@ using Dockhound.Models;
 using Dockhound.Modules;
 using Dockhound.Interactions;
 using Dockhound.Config;
+using Dockhound.Services;
 
 namespace Dockhound;
 
@@ -62,6 +63,7 @@ public class Program
             .Configure<GuildDefaults>(p => p.Value = new GuildConfig())
             .AddSingleton<IAppSettingsService, AppSettingsService>()
             .AddSingleton<IGuildSettingsProvider, GuildSettingsProvider>()
+            .AddSingleton<IVerificationHistoryService, VerificationHistoryService>()
             .AddSingleton<DiscordSocketClient>()
             .AddSingleton(x => new InteractionService(x.GetRequiredService<DiscordSocketClient>(), _interactionServiceConfig))
             .AddSingleton<InteractionHandler>();

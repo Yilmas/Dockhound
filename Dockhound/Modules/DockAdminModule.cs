@@ -40,11 +40,13 @@ namespace Dockhound.Modules
                 private readonly IOptionsMonitor<AppSettings> _monitorSettings;
                 private readonly IAppSettingsService _appSettingsService;
                 private readonly IGuildSettingsProvider _guildSettingsProvider;
+                private readonly IDbContextFactory<DockhoundContext> _dbFactory;
 
                 public DockSettings(DockhoundContext dbContext, HttpClient httpClient, 
                                     IConfiguration config, IOptions<AppSettings> appSettings, 
                                     IOptionsMonitor<AppSettings> monitorSettings, IAppSettingsService appSettingsService, 
-                                    IGuildSettingsProvider guildSettingsProvider)
+                                    IGuildSettingsProvider guildSettingsProvider,
+                                    IDbContextFactory<DockhoundContext> dbFactory)
                 {
                     _dbContext = dbContext;
                     _httpClient = httpClient;
@@ -53,6 +55,7 @@ namespace Dockhound.Modules
                     _appSettingsService = appSettingsService;
                     _monitorSettings = monitorSettings;
                     _guildSettingsProvider = guildSettingsProvider;
+                    _dbFactory = dbFactory;
                 }
 
                 [RequireUserPermission(GuildPermission.Administrator)]
@@ -232,6 +235,59 @@ namespace Dockhound.Modules
                     }
                 }
 
+                
+                [RequireContext(ContextType.Guild)]
+                [RequireUserPermission(GuildPermission.Administrator)]
+                [SlashCommand("guild-update", "Update this guild's name and tag.")]
+                public async Task UpdateGuildAsync(
+                [Summary("name", "New name of the guild")] string? name = null,
+                [Summary("tag", "Short tag/identifier for the guild")] string? tag = null)
+                {
+                    await DeferAsync(ephemeral: true);
+
+                    if (string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(tag))
+                    {
+                        await FollowupAsync("❌ You must specify at least one of `name` or `tag`.", ephemeral: true);
+                        return;
+                    }
+
+                    await using var db = await _dbFactory.CreateDbContextAsync();
+                    var guildId = Context.Guild.Id;
+
+                    var guild = await db.Guilds.FirstOrDefaultAsync(g => g.GuildId == guildId);
+                    if (guild is null)
+                    {
+                        guild = new Guild { GuildId = guildId, CreatedAtUtc = DateTime.UtcNow };
+                        db.Guilds.Add(guild);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(name))
+                        guild.Name = name;
+
+                    if (!string.IsNullOrWhiteSpace(tag))
+                        guild.Tag = tag;
+
+                    try
+                    {
+                        await db.SaveChangesAsync();
+                    }
+                    catch (DbUpdateException ex)
+                    {
+                        await FollowupAsync($"❌ Failed to update guild info: {ex.InnerException?.Message ?? ex.Message}", ephemeral: true);
+                        return;
+                    }
+
+                    var embed = new EmbedBuilder()
+                        .WithTitle("✅ Guild Updated")
+                        .WithColor(Color.Green)
+                        .AddField("Name", guild.Name ?? "-", true)
+                        .AddField("Tag", guild.Tag ?? "-", true)
+                        .WithFooter($"Updated by {Context.User}")
+                        .WithCurrentTimestamp()
+                        .Build();
+
+                    await FollowupAsync(embed: embed, ephemeral: true);
+                }
 
                 [RequireUserPermission(GuildPermission.ViewAuditLog | GuildPermission.ManageMessages)]
                 [SlashCommand("logs-per-message", "Show all log events for a given message id over a given timespan in days")]
@@ -431,13 +487,15 @@ namespace Dockhound.Modules
                         }
                     }
 
+                    var displayName = await _guildSettingsProvider.GetGuildDisplayNameAsync(Context.Guild.Id) ?? "";
+
                     // ---------- Banner handling ----------
                     string? bannerContent = accessLevel switch
                     {
                         AccessRestriction.Restricted =>
                             "## 🔒 Verification is **Restricted**\nNo verification is allowed at this time!",
                         AccessRestriction.MembersOnly =>
-                            "## :warning: Pre-Verification is set to **Members Only**\nOnly HvL regiment members can verify.",
+                            $"## :warning: Pre-Verification is set to **Members Only**\nOnly {displayName} regiment members can verify.",
                         AccessRestriction.Open => null
                     };
 

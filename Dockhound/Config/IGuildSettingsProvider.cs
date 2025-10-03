@@ -16,5 +16,9 @@ namespace Dockhound.Config
 
         Task<GuildConfig.RestrictedAccessSettings> GetRestrictedAccessAsync(ulong guildId, CancellationToken ct = default);
         Task UpdateRestrictedAccessAsync(ulong guildId, ulong? channelId, ulong? messageId, string? changedBy = null, CancellationToken ct = default);
+
+        Task<string?> GetGuildNameAsync(ulong guildId, CancellationToken ct = default);
+        Task<string?> GetGuildTagAsync(ulong guildId, CancellationToken ct = default);
+        Task<string?> GetGuildDisplayNameAsync(ulong guildId, CancellationToken ct = default);
     }
 }

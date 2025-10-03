@@ -2,16 +2,20 @@
 using Discord.Interactions;
 using Discord.WebSocket;
 using Dockhound.Config;
+using Dockhound.Enums;
 using Dockhound.Logs;
 using Dockhound.Modals;
 using Dockhound.Models;
+using Dockhound.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Mail;
 using System.Text;
 using System.Threading.Tasks;
+using static Dockhound.Services.VerificationHistoryService;
 
 namespace Dockhound.Interactions
 {
@@ -21,15 +25,17 @@ namespace Dockhound.Interactions
         private readonly HttpClient _httpClient;
         private readonly IConfiguration _configuration;
         private readonly IGuildSettingsProvider _guildSettingsProvider;
+        private readonly IVerificationHistoryService _verificationHistory;
 
         private long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 
-        public VerificationInteraction(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IGuildSettingsProvider guildSettingsProvider)
+        public VerificationInteraction(DockhoundContext dbContext, HttpClient httpClient, IConfiguration config, IGuildSettingsProvider guildSettingsProvider, IVerificationHistoryService verificationHistoryService)
         {
             _dbContext = dbContext;
             _httpClient = httpClient;
             _configuration = config;
             _guildSettingsProvider = guildSettingsProvider;
+            _verificationHistory = verificationHistoryService;
         }
 
         // APPROVE
@@ -92,11 +98,25 @@ namespace Dockhound.Interactions
                     _ => null
                 };
 
+                var factionEnum = FactionParser.Parse(faction);
+
+                var attachment = comp.Message.Attachments.FirstOrDefault();
+
+                await _verificationHistory.LogApprovalAsync(
+                    guildId: Context.Guild.Id,
+                    userId: user.Id,
+                    faction: factionEnum,
+                    imageUrl: attachment?.Url,
+                    approvedByUserId: Context.User.Id
+                );
+
                 if (factionSecureChannel is null)
                     return;
 
+                var displayName = await _guildSettingsProvider.GetGuildDisplayNameAsync(Context.Guild.Id) ?? "";
+
                 await user.SendMessageAsync(
-                    $"✅ Your HvL verification has been approved! 🎉 " +
+                    $"✅ Your {displayName} verification has been approved! 🎉 " +
                     (factionSecureChannel != null
                         ? $"You now have access to faction-specific channels such as {factionSecureChannel.Mention}."
                         : "Faction-specific channels are now available to you.")
@@ -194,7 +214,9 @@ namespace Dockhound.Interactions
             // Notify user via DM (best-effort)
             try
             {
-                await user.SendMessageAsync($"❌ Your verification for HvL has been denied.\n**Reason:** {modal.Reason}");
+
+                var displayName = await _guildSettingsProvider.GetGuildDisplayNameAsync(Context.Guild.Id) ?? "the server";
+                await user.SendMessageAsync($"❌ Your verification for {displayName} has been denied.\n**Reason:** {modal.Reason}");
             }
             catch
             {

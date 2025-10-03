@@ -4,6 +4,7 @@ using Dockhound.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Dockhound.Migrations
 {
     [DbContext(typeof(DockhoundContext))]
-    partial class DockhoundContextModelSnapshot : ModelSnapshot
+    [Migration("20251003154722_Add_VerificationRecord2")]
+    partial class Add_VerificationRecord2
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -106,15 +109,7 @@ namespace Dockhound.Migrations
                     b.Property<string>("Name")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("Tag")
-                        .HasMaxLength(12)
-                        .HasColumnType("nvarchar(12)");
-
                     b.HasKey("GuildId");
-
-                    b.HasIndex("Tag")
-                        .IsUnique()
-                        .HasFilter("[Tag] IS NOT NULL");
 
                     b.ToTable("Guilds");
                 });
