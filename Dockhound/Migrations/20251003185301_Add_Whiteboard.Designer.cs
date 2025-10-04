@@ -4,6 +4,7 @@ using Dockhound.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Dockhound.Migrations
 {
     [DbContext(typeof(DockhoundContext))]
-    partial class DockhoundContextModelSnapshot : ModelSnapshot
+    [Migration("20251003185301_Add_Whiteboard")]
+    partial class Add_Whiteboard
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -106,15 +109,7 @@ namespace Dockhound.Migrations
                     b.Property<string>("Name")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<string>("Tag")
-                        .HasMaxLength(12)
-                        .HasColumnType("nvarchar(12)");
-
                     b.HasKey("GuildId");
-
-                    b.HasIndex("Tag")
-                        .IsUnique()
-                        .HasFilter("[Tag] IS NOT NULL");
 
                     b.ToTable("Guilds");
                 });
@@ -168,42 +163,6 @@ namespace Dockhound.Migrations
                     b.HasIndex("GuildId");
 
                     b.ToTable("GuildSettingsHistories");
-                });
-
-            modelBuilder.Entity("Dockhound.Models.VerificationRecord", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<DateTime>("ApprovedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<decimal?>("ApprovedByUserId")
-                        .HasColumnType("decimal(20,0)");
-
-                    b.Property<int>("Faction")
-                        .HasMaxLength(32)
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("GuildId")
-                        .HasColumnType("decimal(20,0)");
-
-                    b.Property<string>("ImageUrl")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<decimal>("UserId")
-                        .HasColumnType("decimal(20,0)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("GuildId", "ApprovedAtUtc");
-
-                    b.HasIndex("UserId", "ApprovedAtUtc");
-
-                    b.ToTable("VerificationRecords", (string)null);
                 });
 
             modelBuilder.Entity("Dockhound.Models.Whiteboard", b =>

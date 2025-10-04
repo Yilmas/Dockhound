@@ -1,7 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using Dockhound.Logs;
 using Microsoft.EntityFrameworkCore;
-using Dockhound.Logs;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using System;
+using System.Collections.Generic;
 
 namespace Dockhound.Models;
 
@@ -15,6 +16,10 @@ public partial class DockhoundContext : DbContext
     public DbSet<GuildSettingsHistory> GuildSettingsHistories => Set<GuildSettingsHistory>();
 
     public DbSet<VerificationRecord> VerificationRecords => Set<VerificationRecord>();
+
+    public DbSet<Whiteboard> Whiteboards => Set<Whiteboard>();
+    public DbSet<WhiteboardRole> WhiteboardRoles => Set<WhiteboardRole>();
+    public DbSet<WhiteboardVersion> WhiteboardVersions => Set<WhiteboardVersion>();
 
     public DockhoundContext() {}
 
@@ -64,6 +69,69 @@ public partial class DockhoundContext : DbContext
             e.Property(x => x.ImageUrl).HasColumnType("nvarchar(max)");
             e.HasIndex(x => new { x.UserId, x.ApprovedAtUtc });
             e.HasIndex(x => new { x.GuildId, x.ApprovedAtUtc });
+        });
+
+        // Converters
+        var ulongToDecimal = new ValueConverter<ulong, decimal>(v => v, v => (ulong)v);
+
+        modelBuilder.Entity<Whiteboard>(b =>
+        {
+            b.ToTable("Whiteboards");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Id).ValueGeneratedOnAdd();
+
+            // Discord snowflakes as decimal(20,0)
+            b.Property(x => x.GuildId).HasConversion(ulongToDecimal).HasColumnType("decimal(20,0)");
+            b.Property(x => x.ChannelId).HasConversion(ulongToDecimal).HasColumnType("decimal(20,0)");
+            b.Property(x => x.MessageId).HasConversion(ulongToDecimal).HasColumnType("decimal(20,0)");
+            b.Property(x => x.CreatedById).HasConversion(ulongToDecimal).HasColumnType("decimal(20,0)");
+
+            b.Property(x => x.Title).HasMaxLength(200).IsRequired();
+
+            // enum -> tinyint
+            b.Property(x => x.Mode).HasConversion<byte>().HasColumnType("tinyint").IsRequired();
+
+            b.Property(x => x.CreatedUtc).IsRequired();
+            b.Property(x => x.IsArchived).HasDefaultValue(false);
+            b.Property(x => x.RowVersion).IsRowVersion();
+
+            b.HasMany(x => x.Roles)
+             .WithOne(r => r.Whiteboard)
+             .HasForeignKey(r => r.WhiteboardId)
+             .OnDelete(DeleteBehavior.Cascade);
+
+            b.HasMany(x => x.Versions)
+             .WithOne(v => v.Whiteboard)
+             .HasForeignKey(v => v.WhiteboardId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<WhiteboardRole>(b =>
+        {
+            b.ToTable("WhiteboardRoles");
+            b.HasKey(x => new { x.WhiteboardId, x.RoleId });
+            b.Property(x => x.RoleId).HasConversion(ulongToDecimal).HasColumnType("decimal(20,0)");
+        });
+
+        modelBuilder.Entity<WhiteboardVersion>(b =>
+        {
+            b.ToTable("WhiteboardVersions");
+            b.HasKey(x => x.Id);
+            b.Property(x => x.Id).ValueGeneratedOnAdd();
+
+            b.Property(x => x.WhiteboardId).IsRequired();
+            b.Property(x => x.VersionIndex).IsRequired();
+            b.HasIndex(x => new { x.WhiteboardId, x.VersionIndex }).IsUnique();
+
+            b.Property(x => x.EditorId).HasConversion(ulongToDecimal).HasColumnType("decimal(20,0)");
+            b.Property(x => x.EditedUtc).IsRequired();
+
+            b.Property(x => x.Content).IsRequired();
+
+            b.Property(x => x.PrevLength).IsRequired();
+            b.Property(x => x.NewLength).IsRequired();
+            b.Property(x => x.EditDistance).IsRequired();
+            b.Property(x => x.PercentChanged).HasColumnType("decimal(5,2)").IsRequired();
         });
     }
 
