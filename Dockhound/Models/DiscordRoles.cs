@@ -1,105 +1,91 @@
-﻿using System;
+﻿using Discord;
+using Dockhound.Config;
+using Dockhound.Enums;
+using Dockhound.Models;   // Faction enum
+using Dockhound.Services; // IGuildSettingsService
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
-using Discord;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using static Dockhound.Services.VerificationHistoryService;
 
 namespace Dockhound.Models
 {
-    public class DiscordRoles
-    {
-        public string Name { get; set; }
-
-        [JsonConverter(typeof(UlongToStringConverter))]
-        public ulong Colonial { get; set; }
-
-        [JsonConverter(typeof(UlongToStringConverter))]
-        public ulong Warden { get; set; }
-
-        [JsonConverter(typeof(UlongToStringConverter))]
-        public ulong Generic { get; set; }
-    }
-
     public static class DiscordRolesList
     {
-        public static List<DiscordRoles> GetRoles()
+        public static async Task<List<ulong>> GetDeltaRoleIdListAsync(IGuildSettingsService settings, IGuildUser user, Faction faction, CancellationToken ct = default)
         {
-            try
-            {
-                string json = File.ReadAllText("roles.json");
-
-                return JsonConvert.DeserializeObject<List<DiscordRoles>>(json) ?? new List<DiscordRoles>();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error loading roles.json: {ex.Message}");
-                return new List<DiscordRoles>();
-            }
+            var cfg = await settings.GetAsync(user.GuildId, ct);
+            var roles = cfg.Roles ?? new List<GuildConfig.RoleSet>();
+            return ComputeDelta(roles, user, faction);
         }
 
-        public static List<ulong> GetDeltaRoleIdList(IGuildUser user, string faction)
+        public static Task<List<ulong>> GetDeltaRoleIdListAsync(IGuildSettingsService settings, IGuildUser user, string faction, CancellationToken ct = default)
         {
-            var rolesToAssign = new List<ulong>();
+            var parsed = FactionParser.Parse(faction); // throws if invalid
+            return GetDeltaRoleIdListAsync(settings, user, parsed, ct);
+        }
 
-            var userRoles = user.RoleIds.ToHashSet();
-                
-            foreach (var role in GetRoles())
+        public static async Task<string> GetDeltaRoleMentionsAsync(IGuildSettingsService settings, IGuildUser user, Faction faction, CancellationToken ct = default)
+        {
+            var ids = await GetDeltaRoleIdListAsync(settings, user, faction, ct);
+            return string.Join(", ", ids.Select(id => $"<@&{id}>"));
+        }
+
+        public static async Task<string> GetDeltaRoleMentionsAsync(IGuildSettingsService settings, IGuildUser user, string faction, CancellationToken ct = default)
+        {
+            var ids = await GetDeltaRoleIdListAsync(settings, user, faction, ct);
+            return string.Join(", ", ids.Select(id => $"<@&{id}>"));
+        }
+
+        private static List<ulong> ComputeDelta(IEnumerable<GuildConfig.RoleSet> roleSets, IGuildUser user, Faction faction)
+        {
+            var result = new List<ulong>();
+            var userRoles = user.RoleIds?.ToHashSet() ?? new HashSet<ulong>();
+
+            foreach (var r in roleSets)
             {
-                ulong roleToAssign = 0;
+                // Normalize name once
+                var name = r.Name?.Trim() ?? string.Empty;
 
-                if (role.Name == "Faction")
+                ulong? roleToAssign = null;
+
+                if (string.Equals(name, "Faction", StringComparison.OrdinalIgnoreCase))
                 {
-                    if (faction == "Colonial")
-                        roleToAssign = role.Colonial;
-                    if (faction == "Warden")
-                        roleToAssign = role.Warden;
+                    roleToAssign = faction switch
+                    {
+                        Faction.Colonial => r.Colonial ?? r.Generic,
+                        Faction.Warden => r.Warden ?? r.Generic,
+                        _ => r.Generic
+                    };
                 }
                 else
                 {
-                    ulong factionRoleId = faction switch
+                    // Only assign faction variant if user already has the generic base role
+                    var hasGeneric = r.Generic.HasValue && userRoles.Contains(r.Generic.Value);
+                    if (hasGeneric)
                     {
-                        "Colonial" => role.Colonial,
-                        "Warden" => role.Warden,
-                        _ => role.Generic
-                    };
-
-                    bool hasGenericRole = userRoles.Contains(role.Generic);
-
-                    roleToAssign = hasGenericRole? factionRoleId : 0;
+                        var factionRole = faction switch
+                        {
+                            Faction.Colonial => r.Colonial,
+                            Faction.Warden => r.Warden,
+                            _ => r.Generic
+                        };
+                        roleToAssign = factionRole ?? r.Generic; // fallback if needed
+                    }
                 }
 
-                if (roleToAssign != 0)
+                // Add only if a valid role id and user doesn't already have it
+                if (roleToAssign.HasValue &&
+                    roleToAssign.Value != 0 &&
+                    !userRoles.Contains(roleToAssign.Value))
                 {
-                    rolesToAssign.Add(roleToAssign);
+                    result.Add(roleToAssign.Value);
                 }
             }
 
-            return rolesToAssign;
-        }
-
-        public static string GetDeltaRoleMentions(IGuildUser user, string faction)
-        {
-            List<ulong> missingRoleIds = GetDeltaRoleIdList(user, faction);
-
-            var roleMentions = missingRoleIds.Select(roleId => $"<@&{roleId}>");
-
-            return string.Join(", ", roleMentions);
-        }
-    }
-
-    public class UlongToStringConverter : JsonConverter<ulong>
-    {
-        public override ulong ReadJson(JsonReader reader, Type objectType, ulong existingValue, bool hasExistingValue, JsonSerializer serializer)
-        {
-            return ulong.TryParse(reader.Value?.ToString(), out ulong result) ? result : 0;
-        }
-
-        public override void WriteJson(JsonWriter writer, ulong value, JsonSerializer serializer)
-        {
-            writer.WriteValue(value.ToString());
+            return result;
         }
     }
 }

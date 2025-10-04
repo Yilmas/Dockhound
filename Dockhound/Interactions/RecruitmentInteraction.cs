@@ -30,6 +30,8 @@ namespace Dockhound.Interactions
         [UserCommand("Request Recruit")]
         public async Task RequestRecruit(IUser targetUser)
         {
+            await DeferAsync(ephemeral: true);
+
             if (Context.Guild is null)
                 return;
 
@@ -51,12 +53,9 @@ namespace Dockhound.Interactions
 
             if (!isSelf && !hasPrivilege)
             {
-                await RespondAsync("❌ You don't have permission to \"Request Recruit\" for this user.", ephemeral: true);
+                await FollowupAsync("❌ You don't have permission to \"Request Recruit\" for this user.", ephemeral: true);
                 return;
             }
-
-            //if (!ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out var reviewChannelId))
-            //    return;
 
             var reviewChannel = cfg.Verify.ReviewChannelId is ulong id
                 ? guild.GetTextChannel(id)
@@ -66,20 +65,33 @@ namespace Dockhound.Interactions
                 return;
 
             // Determine faction
-            var factionRole = DiscordRolesList.GetRoles().First(p => p.Name == "Faction");
+            var factionRole = cfg.Roles.First(p => p.Name == "Faction");
             string faction = target.Roles.Any(r => r.Id == factionRole.Colonial) ? "Colonial"
                           : target.Roles.Any(r => r.Id == factionRole.Warden) ? "Warden"
                           : "Unknown";
 
             // Desired roles to assign
-            var recruitRole = DiscordRolesList.GetRoles().First(p => p.Name == "Recruit");
-            var desiredRoleIds = new List<ulong> { recruitRole.Generic };
-            if (string.Equals(faction, "Colonial", StringComparison.OrdinalIgnoreCase)) desiredRoleIds.Add(recruitRole.Colonial);
-            if (string.Equals(faction, "Warden", StringComparison.OrdinalIgnoreCase)) desiredRoleIds.Add(recruitRole.Warden);
+            var ally = cfg.Roles.FirstOrDefault(r => string.Equals(r.Name, "Recruit", StringComparison.OrdinalIgnoreCase));
+            var rolesPlanned = new List<ulong>();
+
+            void Add(ulong? id) { if (id.HasValue && id.Value != 0) rolesPlanned.Add(id.Value); }
+
+            if (ally is not null)
+            {
+                Add(ally.Generic);
+
+                if (string.Equals(faction, "Colonial", StringComparison.OrdinalIgnoreCase))
+                    Add(ally.Colonial);
+                else if (string.Equals(faction, "Warden", StringComparison.OrdinalIgnoreCase))
+                    Add(ally.Warden);
+            }
+
+            rolesPlanned = rolesPlanned.Distinct().ToList();
+
 
             // Filter out roles the user already has (idempotent)
             var existing = target.Roles.Select(r => r.Id).ToHashSet();
-            var toAssign = desiredRoleIds.Where(id => !existing.Contains(id)).ToList();
+            var toAssign = rolesPlanned.Where(id => !existing.Contains(id)).ToList();
 
             if (toAssign.Any())
             {
@@ -87,7 +99,7 @@ namespace Dockhound.Interactions
                 catch (Exception e)
                 {
                     Console.WriteLine($"[ERROR] AddRoles failed: {e.Message}");
-                    await RespondAsync("Could not assign one or more roles, contact an administrator.", ephemeral: true);
+                    await FollowupAsync("Could not assign one or more roles, contact an administrator.", ephemeral: true);
                     return;
                 }
             }
@@ -135,7 +147,7 @@ namespace Dockhound.Interactions
                 Console.WriteLine($"[ERROR] Failed to log recruit assignment: {e.Message}\n{e.StackTrace}");
             }
 
-            await RespondAsync("Recruit assigned.", ephemeral: true);
+            await FollowupAsync("Recruit requested.", ephemeral: true);
         }
     }
 }

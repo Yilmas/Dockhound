@@ -21,5 +21,6 @@ namespace Dockhound.Services
         Task<string?> GetGuildNameAsync(ulong guildId, CancellationToken ct = default);
         Task<string?> GetGuildTagAsync(ulong guildId, CancellationToken ct = default);
         Task<string?> GetGuildDisplayNameAsync(ulong guildId, CancellationToken ct = default);
+        int CurrentSchemaVersion { get; }
     }
 }

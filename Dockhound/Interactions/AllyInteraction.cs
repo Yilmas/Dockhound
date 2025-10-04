@@ -31,6 +31,8 @@ namespace Dockhound.Interactions
         [UserCommand("Request Ally")]
         public async Task RequestAlly(IUser targetUser)
         {
+            await DeferAsync(ephemeral: true);
+
             if (Context.Guild is null)
                 return;
 
@@ -43,7 +45,6 @@ namespace Dockhound.Interactions
             if (acting is null || target is null)
                 return;
 
-            // --- Permission gate: self OR has any allowed role ---
             var allowedRoleIds = cfg.Verify.AllyAssignerRoles?.ToHashSet() ?? new HashSet<ulong>();
 
             bool isSelf = acting.Id == target.Id;
@@ -51,13 +52,9 @@ namespace Dockhound.Interactions
 
             if (!isSelf && !hasPrivilege)
             {
-                await RespondAsync("❌ You don't have permission to \"Request Ally\" for this user.", ephemeral: true);
+                await FollowupAsync("❌ You don't have permission to \"Request Ally\" for this user.", ephemeral: true);
                 return;
             }
-            // --- End permission gate ---
-
-            //if (!ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out var reviewChannelId))
-            //    return;
 
             var reviewChannel = cfg.Verify.ReviewChannelId is ulong id
                         ? guild.GetTextChannel(id)
@@ -67,30 +64,51 @@ namespace Dockhound.Interactions
                 return;
 
             // Determine faction (Colonial/Warden/Unknown)
-            var factionRole = DiscordRolesList.GetRoles().First(p => p.Name == "Faction");
+            var factionRole = cfg.Roles.First(p => p.Name == "Faction");
             string faction = target.Roles.Any(r => r.Id == factionRole.Colonial) ? "Colonial"
                           : target.Roles.Any(r => r.Id == factionRole.Warden) ? "Warden"
                           : "Unknown";
 
             // Planned roles to assign (Ally + faction Ally if available)
-            var allyRole = DiscordRolesList.GetRoles().First(p => p.Name == "Ally");
-            var rolesPlanned = new List<ulong> { allyRole.Generic };
-            if (string.Equals(faction, "Colonial", StringComparison.OrdinalIgnoreCase)) rolesPlanned.Add(allyRole.Colonial);
-            if (string.Equals(faction, "Warden", StringComparison.OrdinalIgnoreCase)) rolesPlanned.Add(allyRole.Warden);
+            var ally = cfg.Roles.FirstOrDefault(r => string.Equals(r.Name, "Ally", StringComparison.OrdinalIgnoreCase));
+            var rolesPlanned = new List<ulong>();
+
+            void Add(ulong? id) { if (id.HasValue && id.Value != 0) rolesPlanned.Add(id.Value); }
+
+            if (ally is not null)
+            {
+                Add(ally.Generic);
+
+                if (string.Equals(faction, "Colonial", StringComparison.OrdinalIgnoreCase))
+                    Add(ally.Colonial);
+                else if (string.Equals(faction, "Warden", StringComparison.OrdinalIgnoreCase))
+                    Add(ally.Warden);
+            }
+
+            rolesPlanned = rolesPlanned.Distinct().ToList();
+
+            // Build a display string for planned roles
+            string plannedRoles =
+                rolesPlanned.Count switch
+                {
+                    0 => "-",
+                    1 => $"<@&{rolesPlanned[0]}>",
+                    _ => string.Join(", ", rolesPlanned.Select(id => $"<@&{id}>"))
+                };
+
+            // Faction text (enum or string)
+            string factionText = faction is Enum ? faction.ToString()! : faction?.ToString() ?? "-";
 
             // Build embed
             var eb = new EmbedBuilder()
                 .WithTitle("Ally Request")
                 .WithColor(Color.Teal)
-                .AddField("User", target.Mention, true)
-                .AddField("User ID", target.Id, true)
-                .AddField("Faction", faction, true)
-                .AddField("Planned Roles",
-                    rolesPlanned.Count == 1
-                        ? $"<@&{allyRole.Generic}>"
-                        : string.Join(", ", rolesPlanned.Select(id => $"<@&{id}>")),
-                    false)
+                .AddField("User", target.Mention, inline: true)
+                .AddField("User ID", target.Id.ToString(), inline: true)
+                .AddField("Faction", factionText, inline: true)
+                .AddField("Planned Roles", plannedRoles, inline: false)
                 .WithFooter($"Requested by {acting.Username}");
+
 
             var components = new ComponentBuilder()
                 .WithButton("Approve", "ally-approve", ButtonStyle.Success)
@@ -117,15 +135,19 @@ namespace Dockhound.Interactions
                 Console.WriteLine($"[ERROR] Failed to log ally request: {e.Message}\n{e.StackTrace}");
             }
 
-            await RespondAsync("Ally request created.", ephemeral: true);
+            await FollowupAsync("Ally request created.", ephemeral: true);
         }
 
         // APPROVE
         [ComponentInteraction("ally-approve")]
         public async Task ApproveAlly()
         {
+            await DeferAsync(ephemeral: true);
+
             var comp = (SocketMessageComponent)Context.Interaction;
             var guild = Context.Guild;
+
+            var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
 
             var embed = comp.Message.Embeds.FirstOrDefault()?.ToEmbedBuilder();
             if (embed == null)
@@ -143,17 +165,28 @@ namespace Dockhound.Interactions
             if (member == null)
                 return;
 
-            await DeferAsync(ephemeral: true);
-
             // Planned roles (assign now)
             var faction = factionField.Value?.ToString() ?? "Unknown";
-            var allyRole = DiscordRolesList.GetRoles().First(p => p.Name == "Ally");
-            var rolesToAssign = new List<ulong> { allyRole.Generic };
-            if (string.Equals(faction, "Colonial", StringComparison.OrdinalIgnoreCase)) rolesToAssign.Add(allyRole.Colonial);
-            if (string.Equals(faction, "Warden", StringComparison.OrdinalIgnoreCase)) rolesToAssign.Add(allyRole.Warden);
+            var ally = cfg.Roles.FirstOrDefault(r => string.Equals(r.Name, "Ally", StringComparison.OrdinalIgnoreCase));
+            var rolesPlanned = new List<ulong>();
 
-            if (rolesToAssign.Count > 0)
-                await member.AddRolesAsync(rolesToAssign);
+            void Add(ulong? id) { if (id.HasValue && id.Value != 0) rolesPlanned.Add(id.Value); }
+
+            if (ally is not null)
+            {
+                Add(ally.Generic);
+
+                if (string.Equals(faction, "Colonial", StringComparison.OrdinalIgnoreCase))
+                    Add(ally.Colonial);
+                else if (string.Equals(faction, "Warden", StringComparison.OrdinalIgnoreCase))
+                    Add(ally.Warden);
+            }
+
+            rolesPlanned = rolesPlanned.Distinct().ToList();
+
+
+            if (rolesPlanned.Count > 0)
+                await member.AddRolesAsync(rolesPlanned);
 
             // Update review message
             embed.WithFooter($"Approved ✅ by {Context.User.Username}");
@@ -168,7 +201,7 @@ namespace Dockhound.Interactions
             // DM the user (best-effort)
             try
             {
-                await member.SendMessageAsync($"✅ You’ve been assigned the **Ally** role{(rolesToAssign.Count > 1 ? "s" : "")} in **{Context.Guild.Name}**. Welcome!");
+                await member.SendMessageAsync($"✅ You’ve been assigned the **Ally** role{(rolesPlanned.Count > 1 ? "s" : "")} in **{Context.Guild.Name}**. Welcome!");
             }
             catch
             {
@@ -221,6 +254,8 @@ namespace Dockhound.Interactions
         [ModalInteraction("ally-deny-reason:*:*")]
         public async Task SubmitAllyDenyReason(ulong userId, ulong messageId, DenyReasonModal modal)
         {
+            await DeferAsync(ephemeral: true);
+
             var guild = Context.Guild;
             if (guild is null)
                 return;
@@ -234,9 +269,6 @@ namespace Dockhound.Interactions
 
             if (reviewMessage == null)
             {
-                //if (!ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out var reviewChannelId))
-                //    return;
-
                 var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
                 var reviewChannel = cfg.Verify.ReviewChannelId is ulong id
                         ? guild.GetTextChannel(id)
@@ -269,11 +301,11 @@ namespace Dockhound.Interactions
                 }
                 catch
                 {
-                    await RespondAsync($"Could not DM {member.Username}. They may have DMs disabled.", ephemeral: true);
+                    await FollowupAsync($"Could not DM {member.Username}. They may have DMs disabled.", ephemeral: true);
                 }
             }
 
-            await RespondAsync("Deny reason submitted and user has been notified.", ephemeral: true);
+            await FollowupAsync("Deny reason submitted and user has been notified.", ephemeral: true);
 
             // Log
             try

@@ -60,40 +60,7 @@ namespace Dockhound.Modules
                 }
 
                 [RequireUserPermission(GuildPermission.Administrator)]
-                [SlashCommand("view", "Displays current app settings")]
-                public async Task GetAppSettings()
-                {
-                    var node = JsonSerializer.SerializeToNode(
-                        _monitorSettings.CurrentValue,
-                        new JsonSerializerOptions { WriteIndented = true }
-                    ) as JsonObject;
-
-                    if (node is not null && node.ContainsKey("Configuration"))
-                    {
-                        node["Configuration"] = new JsonObject
-                        {
-                            ["_redacted"] = "Removed to prevent leakage"
-                        };
-                    }
-
-                    var pretty = node?.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) ?? "{}";
-
-                    // Keep embed under 4096 chars
-                    const int max = 3900; // headroom for code fences
-                    if (pretty.Length > max)
-                        pretty = pretty.Substring(0, max) + "\n... (truncated)";
-
-                    var embed = new EmbedBuilder()
-                        .WithTitle("App Settings")
-                        .WithDescription($"```\n{pretty}\n```")
-                        .WithColor(Color.Blue)
-                        .Build();
-
-                    await RespondAsync(embed: embed, ephemeral: true);
-                }
-
-                [RequireUserPermission(GuildPermission.Administrator)]
-                [SlashCommand("viewguild", "Displays current guild settings")]
+                [SlashCommand("view", "Displays current guild settings")]
                 public async Task GetGuildSettings()
                 {
                     var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
@@ -171,7 +138,8 @@ namespace Dockhound.Modules
                     }
 
                     // Defensive defaults to avoid null refs
-                    cfg.SchemaVersion = cfg.SchemaVersion <= 0 ? 1 : cfg.SchemaVersion;
+                    cfg.SchemaVersion = cfg.SchemaVersion <= 0 ? _guildSettingsService.CurrentSchemaVersion : cfg.SchemaVersion;
+                    cfg.Roles ??= new List<GuildConfig.RoleSet>(); // Version 2
                     cfg.Verify ??= new GuildConfig.VerificationSettings();
                     cfg.Verify.RestrictedAccess ??= new GuildConfig.RestrictedAccessSettings();
                     cfg.Verify.RecruitAssignerRoles ??= new List<ulong>();
@@ -235,7 +203,6 @@ namespace Dockhound.Modules
                         }
                     }
                 }
-
                 
                 [RequireContext(ContextType.Guild)]
                 [RequireUserPermission(GuildPermission.Administrator)]
@@ -258,8 +225,8 @@ namespace Dockhound.Modules
                     var guild = await db.Guilds.FirstOrDefaultAsync(g => g.GuildId == guildId);
                     if (guild is null)
                     {
-                        guild = new Guild { GuildId = guildId, CreatedAtUtc = DateTime.UtcNow };
-                        db.Guilds.Add(guild);
+                        await FollowupAsync("❌ You must run the command config-update first!", ephemeral: true);
+                        return;
                     }
 
                     if (!string.IsNullOrWhiteSpace(name))
@@ -398,19 +365,6 @@ namespace Dockhound.Modules
 
                     await RespondAsync(embed: embed);
                 }
-
-                //[RequireUserPermission(GuildPermission.Administrator)]
-                //[SlashCommand("applicant_button", "Create Button for Applicants to use")]
-                //public async Task ApplicantButton()
-                //{
-                //    var button = new ComponentBuilder()
-                //        .WithButton("Assign Applicant", $"assign_applicant");
-
-                //    await RespondAsync(
-                //        text: "\u200B",
-                //        components: button.Build()
-                //    );
-                //}
 
                 [RequireUserPermission(GuildPermission.Administrator)]
                 [SlashCommand("restrict", "Set the channel’s access mode")]

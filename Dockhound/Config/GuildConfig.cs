@@ -10,6 +10,7 @@ namespace Dockhound.Config
     {
         public int SchemaVersion { get; set; } = 1;
         public VerificationSettings Verify { get; set; } = new ();
+        public List<RoleSet> Roles { get; set; } = new();
 
         public sealed class  VerificationSettings
         {
@@ -29,6 +30,13 @@ namespace Dockhound.Config
             public List<ulong>? MemberOnlyRoles { get; set; }
             public ulong? ChannelId { get; set; }
             public ulong? MessageId { get; set; }
+        }
+        public sealed class RoleSet
+        {
+            public string Name { get; set; } = string.Empty;
+            public ulong? Colonial { get; set; }
+            public ulong? Warden { get; set; }
+            public ulong? Generic { get; set; }
         }
     }
 }

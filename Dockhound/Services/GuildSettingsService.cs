@@ -21,6 +21,10 @@ namespace Dockhound.Services
 
         private static string CacheKey(ulong gid) => $"guildcfg:{gid}";
 
+        public const int SchemaVersionConst = 2;
+
+        public int CurrentSchemaVersion => SchemaVersionConst;
+
         public GuildSettingsService(IDbContextFactory<DockhoundContext> dbFactory, IMemoryCache cache, IOptions<GuildDefaults> defaults)
         {
             _dbFactory = dbFactory;
@@ -44,12 +48,24 @@ namespace Dockhound.Services
         private static void EnsureDefaults(GuildConfig cfg)
         {
             cfg.SchemaVersion = Math.Max(1, cfg.SchemaVersion);
+            cfg.Roles ??= new List<GuildConfig.RoleSet>(); // Version 2
             cfg.Verify ??= new GuildConfig.VerificationSettings();
             cfg.Verify.RestrictedAccess ??= new GuildConfig.RestrictedAccessSettings();
             cfg.Verify.RecruitAssignerRoles ??= new List<ulong>();
             cfg.Verify.AllyAssignerRoles ??= new List<ulong>();
             cfg.Verify.RestrictedAccess.AlwaysRestrictRoles ??= new List<ulong>();
             cfg.Verify.RestrictedAccess.MemberOnlyRoles ??= new List<ulong>();
+        }
+
+        private static void MigrateToCurrent(GuildConfig cfg)
+        {
+            // v1 -> v2: ensure Roles exists and bump the version
+            if (cfg.SchemaVersion < 2)
+            {
+                cfg.Roles ??= new List<GuildConfig.RoleSet>();
+                cfg.SchemaVersion = 2;
+            }
+            // future migrations: if (cfg.SchemaVersion < 3) { ...; cfg.SchemaVersion = 3; }
         }
 
         public async Task<GuildConfig.RestrictedAccessSettings> GetRestrictedAccessAsync(ulong guildId, CancellationToken ct = default)
@@ -90,7 +106,8 @@ namespace Dockhound.Services
             if (guild.Settings is null)
             {
                 var seed = Clone(_defaults.Value);
-                seed.SchemaVersion = Math.Max(1, seed.SchemaVersion);
+                EnsureDefaults(seed);
+                seed.SchemaVersion = Math.Max(seed.SchemaVersion, CurrentSchemaVersion);
                 guild.Settings = new GuildSettings
                 {
                     GuildId = guildId,
@@ -103,7 +120,26 @@ namespace Dockhound.Services
             }
 
             var cfg = Json.Deserialize<GuildConfig>(guild.Settings.Json) ?? new GuildConfig();
-            EnsureDefaults(cfg); // <- make nested non-null
+            EnsureDefaults(cfg);
+
+            // --- Auto-migrate if needed ---
+            if (cfg.SchemaVersion < CurrentSchemaVersion)
+            {
+                MigrateToCurrent(cfg);
+                guild.Settings.SchemaVersion = cfg.SchemaVersion;
+                guild.Settings.Json = Json.Serialize(cfg);
+
+                db.GuildSettingsHistories.Add(new GuildSettingsHistory
+                {
+                    GuildId = guildId,
+                    Json = guild.Settings.Json,
+                    ChangedBy = "auto-migrate",
+                    ChangedAtUtc = DateTime.UtcNow
+                });
+
+                await db.SaveChangesAsync(ct);
+            }
+
             _cache.Set(CacheKey(guildId), cfg, _cacheOptions);
             return cfg;
         }

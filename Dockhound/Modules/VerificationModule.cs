@@ -87,14 +87,39 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
             track = string.Join("\n", lines);
         }
 
+        IGuildUser? member = Context.Guild.GetUser(Context.User.Id);
+
+        if (member is null)
+        {
+            // fallback to REST if not in cache
+            member = await Context.Client.Rest.GetGuildUserAsync(Context.Guild.Id, Context.User.Id);
+        }
+
+        // At this point `member` is either SocketGuildUser or RestGuildUser, but both are IGuildUser
+        var displayName = (member as SocketGuildUser)?.DisplayName
+                          ?? member?.Username
+                          ?? Context.User.Username;
+
+        var roleMentions = "-";
+        if (member is not null)
+        {
+            roleMentions = await DiscordRolesList.GetDeltaRoleMentionsAsync(
+                _guildSettingsService,
+                member,
+                faction   // Faction enum
+            );
+            if (string.IsNullOrWhiteSpace(roleMentions))
+                roleMentions = "-";
+        }
+
 
         var embed = new EmbedBuilder()
             .WithTitle("New Verification Submission")
-            .WithDescription($"A verification has been submitted by {Context.Guild.GetUser(Context.User.Id).DisplayName} - ({Context.User.Mention})")
-            .AddField("Faction", faction, true)
-            .AddField("User ID", Context.User.Id.ToString(), true)
-            .AddField("Roles to be granted", DiscordRolesList.GetDeltaRoleMentions(Context.Guild.GetUser(Context.User.Id), faction.ToString()), false)
-            .AddField("Faction history (last 5)", track, inline: false)
+            .WithDescription($"A verification has been submitted by {displayName} — ({Context.User.Mention})")
+            .AddField("Faction", faction.ToString(), inline: true)
+            .AddField("User ID", Context.User.Id.ToString(), inline: true)
+            .AddField("Roles to be granted", roleMentions, inline: false)
+            .AddField("Faction history (last 5)", string.IsNullOrWhiteSpace(track) ? "-" : track, inline: false)
             .WithColor(faction == Faction.Colonial ? Color.DarkGreen : Color.DarkBlue)
             .WithCurrentTimestamp()
             .WithFooter("Awaiting Approval")

@@ -62,8 +62,6 @@ namespace Dockhound.Interactions
             if (user == null)
                 return;
 
-            //_ = ulong.TryParse(_configuration["CHANNEL_VERIFY_NOTIFICATION"], out var notificationChannelId);
-
             var notificationChannel = cfg.Verify.NotificationChannelId is ulong id
                         ? guild.GetTextChannel(id)
                         : null;
@@ -74,9 +72,18 @@ namespace Dockhound.Interactions
             await DeferAsync(ephemeral: true);
 
             // Assign roles
-            var rolesToAssign = DiscordRolesList.GetDeltaRoleIdList(user, factionField.Value?.ToString() ?? string.Empty);
+            var factionF = FactionParser.Parse(factionField.Value?.ToString()); // throws if invalid
+
+            var rolesToAssign = await DiscordRolesList.GetDeltaRoleIdListAsync(
+                _guildSettingsService, // IGuildSettingsService injected
+                user,                  // IGuildUser
+                factionF                // Faction enum
+            );
+
             if (rolesToAssign.Count > 0)
+            {
                 await user.AddRolesAsync(rolesToAssign);
+            }
 
             // Update the review message: footer + remove buttons
             embed.WithFooter($"Approved ✅ by {Context.User.Username}");
