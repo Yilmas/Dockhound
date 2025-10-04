@@ -31,23 +31,24 @@ namespace Dockhound.Interactions
             _configuration = config;
         }
 
-        static bool CanEdit(IGuildUser user, Whiteboard wb)
+        private async Task<bool> CanEditAsync(IGuildUser user, long wbId)
         {
-            // Manage Channel shortcut
             if (user.GuildPermissions.ManageChannels) return true;
 
-            return wb.Mode switch
-            {
-                AccessRestriction.Restricted => false,
-                AccessRestriction.Open => true,
-                AccessRestriction.MembersOnly => user.RoleIds.Any(rid => wb.Roles.Any(x => x.RoleId == rid)),
-                _ => false
-            };
+            var wb = await _dbContext.Whiteboards
+                .AsNoTracking()
+                .Where(w => w.Id == wbId)
+                .Select(w => new { w.Mode })
+                .FirstOrDefaultAsync();
+
+            if (wb is null) return false;
+            if (wb.Mode == AccessRestriction.Open) return true;
+            if (wb.Mode != AccessRestriction.MembersOnly) return false;
+
+            var userRoleIds = user.RoleIds.ToArray();
+            return await _dbContext.WhiteboardRoles
+                .AnyAsync(r => r.WhiteboardId == wbId && userRoleIds.Contains(r.RoleId));
         }
-
-        static bool CanViewHistory(IGuildUser user) =>
-            user.GuildPermissions.ManageChannels; 
-
 
         [ComponentInteraction("wb:edit:*")]
         public async Task EditWhiteboardAsync(string wbIdStr)
@@ -62,7 +63,7 @@ namespace Dockhound.Interactions
                 return;
 
             var caller = (IGuildUser)Context.User;
-            if (!CanEdit(caller, wb))
+            if (!await CanEditAsync(caller, wbId))
             {
                 await RespondAsync("You don’t have permission to edit this whiteboard.", ephemeral: true);
                 return;
@@ -93,7 +94,7 @@ namespace Dockhound.Interactions
         [ModalInteraction("wb:submit:*")]
         public async Task SubmitEditAsync(string wbIdStr, WhiteboardEditModal modal)
         {
-            await DeferAsync(ephemeral: false);
+            await DeferAsync(ephemeral: true);
 
             if (!long.TryParse(wbIdStr, out var wbId))
             {
@@ -122,10 +123,10 @@ namespace Dockhound.Interactions
                 return;
             }
 
-            // Compute edit distance and % changed (case-insensitive is usually nicer for text)
+            // Compute edit distance and % changed
             var dist = oldContent.LevenshteinDistance(newContent, ignoreCase: true);
             var maxLen = Math.Max(oldContent.Length, 1);                // avoid /0
-            var percent = Math.Round((decimal)dist / maxLen * 100m, 2); // e.g. 23.47
+            var percent = Math.Round((decimal)dist / maxLen * 100m, 2);
 
             var ver = new WhiteboardVersion
             {
@@ -143,7 +144,6 @@ namespace Dockhound.Interactions
             _dbContext.WhiteboardVersions.Add(ver);
             await _dbContext.SaveChangesAsync();
 
-            // Update the persistent message (embed)
             if (await Context.Client.GetChannelAsync(wb.ChannelId) is IMessageChannel ch
                 && await ch.GetMessageAsync(wb.MessageId) is IUserMessage msg)
             {
@@ -175,7 +175,6 @@ namespace Dockhound.Interactions
                 return;
             }
 
-            // Ensure the board exists and check archive state
             var wb = await _dbContext.Whiteboards
                 .FirstOrDefaultAsync(w => w.Id == wbId && w.GuildId == Context.Guild.Id);
 
@@ -212,7 +211,7 @@ namespace Dockhound.Interactions
             var menu = new SelectMenuBuilder()
                 .WithCustomId($"wb:pick:{wbId}")
                 .WithPlaceholder("Select a version to clone…")
-                .WithType(ComponentType.SelectMenu)   // v3.18 generic string select
+                .WithType(ComponentType.SelectMenu) 
                 .WithMinValues(1)
                 .WithMaxValues(1)
                 .WithOptions(options);
@@ -240,7 +239,7 @@ namespace Dockhound.Interactions
 
             var comps = new ComponentBuilder()
                 .WithButton("Clone Selected Version", $"wb:clone:{wbId}|v:{verIdx}", ButtonStyle.Primary)
-                .WithButton("Cancel", $"wb:cancel:{wbId}", ButtonStyle.Secondary) // 👈 new
+                .WithButton("Cancel", $"wb:cancel:{wbId}", ButtonStyle.Secondary)
                 .Build();
 
             var msgText = $"Selected version **#{verIdx}**. Click **Clone Selected Version** to create a new whiteboard.";
@@ -250,7 +249,7 @@ namespace Dockhound.Interactions
                 await smc.UpdateAsync(m =>
                 {
                     m.Content = msgText;
-                    m.Components = comps; // dropdown removed; shows Clone + Cancel
+                    m.Components = comps;
                 });
             }
             else
@@ -293,7 +292,7 @@ namespace Dockhound.Interactions
                 .WithOptions(options);
 
             var comps = new ComponentBuilder()
-                .WithSelectMenu(menu) // dropdown restored, no buttons
+                .WithSelectMenu(menu) 
                 .Build();
 
             if (Context.Interaction is SocketMessageComponent smc)
@@ -301,7 +300,7 @@ namespace Dockhound.Interactions
                 await smc.UpdateAsync(m =>
                 {
                     m.Content = "Select a version to clone…";
-                    m.Components = comps; // show dropdown again
+                    m.Components = comps;
                 });
             }
             else
@@ -418,7 +417,6 @@ namespace Dockhound.Interactions
                 return;
             }
 
-            // values[] contains selected Role IDs as strings
             var roleIds = values
                 .Select(v => ulong.TryParse(v, out var id) ? id : (ulong?)null)
                 .Where(id => id.HasValue)
@@ -432,7 +430,6 @@ namespace Dockhound.Interactions
                 return;
             }
 
-            // Replace allowlist
             wb.Roles.Clear();
             foreach (var rid in roleIds)
                 wb.Roles.Add(new WhiteboardRole { WhiteboardId = wb.Id, RoleId = rid });

@@ -27,7 +27,8 @@ namespace Dockhound.Modules
             [SlashCommand("create", "Create a new whiteboard")]
             public async Task CreateAsync(string title, AccessRestriction mode = AccessRestriction.Open)
             {
-                // Create entity
+                await DeferAsync(ephemeral: true);
+
                 var wb = new Whiteboard
                 {
                     GuildId = Context.Guild.Id,
@@ -39,7 +40,7 @@ namespace Dockhound.Modules
                     IsArchived = false
                 };
 
-                // Seed with v1 (empty content)
+                // Seed with empty content
                 wb.Versions.Add(new WhiteboardVersion
                 {
                     VersionIndex = 1,
@@ -55,7 +56,6 @@ namespace Dockhound.Modules
                 _db.Whiteboards.Add(wb);
                 await _db.SaveChangesAsync();
 
-                // Post the persistent message
                 var embed = WhiteboardComponents.BuildEmbed(
                     wb.Title,
                     string.Empty,
@@ -70,10 +70,8 @@ namespace Dockhound.Modules
                 wb.MessageId = msg.Id;
                 await _db.SaveChangesAsync();
 
-                // Base confirmation
-                await RespondAsync($"Whiteboard **{wb.Title}** created.", ephemeral: true);
+                await FollowupAsync($"Whiteboard **{wb.Title}** created.", ephemeral: true);
 
-                // If MembersOnly, prompt for roles via Role Select (no IRole[] in the slash command)
                 if (mode == AccessRestriction.MembersOnly)
                 {
                     var caller = (IGuildUser)Context.User;
@@ -84,7 +82,7 @@ namespace Dockhound.Modules
                     }
 
                     var roleMenu = new SelectMenuBuilder()
-                        .WithCustomId($"wb:roles:{wb.MessageId}") // use MessageId as the handle
+                        .WithCustomId($"wb:roles:{wb.MessageId}") 
                         .WithPlaceholder("Select allowed roles…")
                         .WithType(ComponentType.RoleSelect)
                         .WithMinValues(1)
@@ -134,8 +132,7 @@ namespace Dockhound.Modules
                     return;
                 }
 
-                // MembersOnly → prompt with RoleSelect (ephemeral)
-                await _db.SaveChangesAsync(); // persist mode change before selection
+                await _db.SaveChangesAsync(); 
 
                 var roleMenu = new SelectMenuBuilder()
                     .WithCustomId($"wb:roles:{messageIdUlong}")
@@ -212,7 +209,6 @@ namespace Dockhound.Modules
                 var channelMention = MentionUtils.MentionChannel(wb.ChannelId);
                 var roles = wb.Roles?.Select(r => MentionUtils.MentionRole(r.RoleId)).ToList() ?? [];
 
-                // Build an embed
                 var eb = new EmbedBuilder()
                     .WithTitle($"Whiteboard Info — WB-{wb.Id}")
                     .WithColor(Color.Teal)
@@ -235,7 +231,6 @@ namespace Dockhound.Modules
                         false)
                     .WithFooter($"WhiteboardId: {wb.Id} • MessageId: {wb.MessageId}");
 
-                // If caller has Manage Channel, show last 5 edits summary
                 var caller = (IGuildUser)Context.User;
                 if (caller.GuildPermissions.ManageChannels)
                 {
@@ -278,10 +273,8 @@ namespace Dockhound.Modules
                     return;
                 }
 
-                // Toggle state
                 wb.IsArchived = !wb.IsArchived;
 
-                // Title: add/remove [ARCHIVED]
                 string title = wb.Title;
                 const string archivedTag = "🔒 ";
                 if (wb.IsArchived)

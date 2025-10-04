@@ -8,11 +8,12 @@ Your friendly Companion Bot, for when you feel lonely and abandoned in the yard!
 ## Current Features:
 - Multi-Server support
 - Yard Tracker
-- Whiteboard
+- Whiteboard v2
 - Verification (auto-role manager)
 	- Restrict channel
 	- Request Recruit & Ally
 - Bookmark
+- Help
 
 
 ## WIP Features:
@@ -20,7 +21,6 @@ Your friendly Companion Bot, for when you feel lonely and abandoned in the yard!
 
 ## Notes
 - While DotEnv are available with prefix `DOCK_`, I recommend using appsettings.json
-- Applicant has been deprecated, code left behind outcommented for historical reasons (e.g., I might need some references later)
 
 ### Sample AppSettings
 
@@ -29,7 +29,7 @@ Your friendly Companion Bot, for when you feel lonely and abandoned in the yard!
   "Configuration": {
     "DiscordToken": "DISCORD_TOKEN",
     "DatabaseConnectionString": "SQL_DB_CONN",
-    "AppInsightsConnectionString": "APP_INSIGHT",
+    "AppInsightsConnectionString": "APP_INSIGHT - (optional)",
     "Environment": "Development/Production"
   }
 }
