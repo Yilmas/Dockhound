@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Dockhound.Enums;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -21,7 +22,9 @@ namespace Dockhound.Config
             public ulong? WardenSecureChannelId { get; set; }
             public List<ulong>? RecruitAssignerRoles { get; set; }
             public List<ulong>? AllyAssignerRoles { get; set; }
+            public List<ulong>? TrustedRoles { get; set; }
             public RestrictedAccessSettings RestrictedAccess { get; set; }
+            public bool IsSteamRequired { get; set; } = false;
         }
 
         public sealed class RestrictedAccessSettings
@@ -30,6 +33,7 @@ namespace Dockhound.Config
             public List<ulong>? MemberOnlyRoles { get; set; }
             public ulong? ChannelId { get; set; }
             public ulong? MessageId { get; set; }
+            public AccessRestriction CurrentRestrictionLevel { get; set; } = AccessRestriction.Open;
         }
         public sealed class RoleSet
         {

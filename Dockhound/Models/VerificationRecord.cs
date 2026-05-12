@@ -16,5 +16,6 @@ namespace Dockhound.Models
         public string? ImageUrl { get; set; }
         public ulong? ApprovedByUserId { get; set; }
         public DateTime ApprovedAtUtc { get; set; } = DateTime.UtcNow;
+        public ulong? Steam64Id { get; set; }
     }
 }

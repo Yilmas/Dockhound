@@ -139,13 +139,15 @@ namespace Dockhound.Modules
 
                     // Defensive defaults to avoid null refs
                     cfg.SchemaVersion = cfg.SchemaVersion <= 0 ? _guildSettingsService.CurrentSchemaVersion : cfg.SchemaVersion;
-                    cfg.Roles ??= new List<GuildConfig.RoleSet>(); // Version 2
+                    cfg.Roles ??= new List<GuildConfig.RoleSet>();
                     cfg.Verify ??= new GuildConfig.VerificationSettings();
                     cfg.Verify.RestrictedAccess ??= new GuildConfig.RestrictedAccessSettings();
                     cfg.Verify.RecruitAssignerRoles ??= new List<ulong>();
                     cfg.Verify.AllyAssignerRoles ??= new List<ulong>();
+                    cfg.Verify.TrustedRoles ??= new List<ulong>();
                     cfg.Verify.RestrictedAccess.AlwaysRestrictRoles ??= new List<ulong>();
                     cfg.Verify.RestrictedAccess.MemberOnlyRoles ??= new List<ulong>();
+                    cfg.Verify.IsSteamRequired = false;
 
                     // Persist
                     try
@@ -363,7 +365,11 @@ namespace Dockhound.Modules
                         .WithFooter("Brought to you by Dockhound")
                         .Build();
 
-                    await RespondAsync(embed: embed);
+                    var component = new ComponentBuilder()
+                        .WithButton("Verify", "verify:metoo", ButtonStyle.Success)
+                        .Build();
+
+                    await RespondAsync(embed: embed, components: component);
                 }
 
                 [RequireUserPermission(GuildPermission.Administrator)]
@@ -487,7 +493,7 @@ namespace Dockhound.Modules
 
                         var newBanner = await channel.SendMessageAsync(bannerContent);
 
-                        await _guildSettingsService.UpdateRestrictedAccessAsync(Context.Guild.Id, channel.Id, newBanner.Id, Context.User.Username + "#" + Context.User.Id);
+                        await _guildSettingsService.UpdateRestrictedAccessAsync(Context.Guild.Id, channel.Id, newBanner.Id, accessLevel, Context.User.Username + "#" + Context.User.Id);
                     }
                     else
                     {
@@ -508,7 +514,7 @@ namespace Dockhound.Modules
                             }
                             catch { /* ignore */ }
 
-                            await _guildSettingsService.UpdateRestrictedAccessAsync(Context.Guild.Id, null, null, Context.User.Username + "#" + Context.User.Id);
+                            await _guildSettingsService.UpdateRestrictedAccessAsync(Context.Guild.Id, null, null, AccessRestriction.Open, Context.User.Username + "#" + Context.User.Id);
                         }
                     }
                     // ---------- end banner handling ----------

@@ -20,6 +20,7 @@ namespace Dockhound.Models
         public string DatabaseConnectionString { get; set; }
         public string AppInsightsConnectionString { get; set; }
         public EnvironmentState Environment { get; set; } = EnvironmentState.Development;
+        public string SteamAPIKey { get; set; }
     }
 
     public class VerifySettings

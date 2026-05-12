@@ -11,7 +11,7 @@ namespace Dockhound.Services
 
     public interface IVerificationHistoryService
     {
-        Task LogApprovalAsync(ulong guildId, ulong userId, Faction faction, string? imageUrl, ulong? approvedByUserId,CancellationToken ct = default);
+        Task LogApprovalAsync(ulong guildId, ulong userId, Faction faction, string? imageUrl, ulong? approvedByUserId, ulong? steam64Id,CancellationToken ct = default);
 
         Task<IReadOnlyList<VerificationBrief>> GetTrackRecordAsync(ulong userId, int take = 5, CancellationToken ct = default);
 

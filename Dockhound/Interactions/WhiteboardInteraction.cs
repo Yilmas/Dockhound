@@ -78,15 +78,21 @@ namespace Dockhound.Interactions
             var latest = wb.Versions.OrderByDescending(v => v.VersionIndex).FirstOrDefault();
             var latestContent = latest?.Content ?? string.Empty;
 
+            // Replace this block in EditWhiteboardAsync:
+
             var modal = new ModalBuilder()
                 .WithTitle("Edit Whiteboard")
                 .WithCustomId($"wb:submit:{wb.Id}")
-                .AddTextInput(new TextInputBuilder()
-                    .WithCustomId("wb_content")        
-                    .WithLabel("Content")
-                    .WithStyle(TextInputStyle.Paragraph)
-                    .WithMaxLength(1900)
-                    .WithValue(latestContent));   
+                .AddTextInput(
+                    label: "Content",
+                    customId: "wb_content",
+                    style: TextInputStyle.Paragraph,
+                    placeholder: null,
+                    minLength: null,
+                    maxLength: 1900,
+                    required: null,
+                    value: latestContent
+                );
 
             await Context.Interaction.RespondWithModalAsync(modal.Build());
         }

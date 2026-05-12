@@ -6,6 +6,7 @@ using Dockhound.Enums;
 using Dockhound.Logs;
 using Dockhound.Modals;
 using Dockhound.Models;
+using Dockhound.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -33,14 +34,16 @@ public class InteractionHandler
     private readonly IConfiguration _configuration;
     private readonly DockhoundContext _dbContext;
     private readonly AppSettings _settings;
+    private readonly IGuildSettingsService _guildSettingsService;
 
-    public InteractionHandler(DiscordSocketClient client, InteractionService handler, IServiceProvider services, IConfiguration config, DockhoundContext dbContext, IOptions<AppSettings> appSettings)
+    public InteractionHandler(DiscordSocketClient client, InteractionService handler, IServiceProvider services, IConfiguration config, DockhoundContext dbContext, IOptions<AppSettings> appSettings, IGuildSettingsService guildSettingsService)
     {
         _client = client;
         _handler = handler;
         _services = services;
         _configuration = config;
         _dbContext = dbContext;
+        _guildSettingsService = guildSettingsService;
         _settings = appSettings.Value;
     }
 
@@ -74,6 +77,18 @@ public class InteractionHandler
         foreach (var item in _client.Guilds)
         {
             await _handler.RegisterCommandsToGuildAsync(guildId: item.Id, deleteMissing: true);
+        }
+
+        foreach (var guild in _client.Guilds)
+        {
+            try
+            {
+                await _guildSettingsService.GetAsync(guild.Id);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to warm guild settings cache for guild {guild.Id}: {ex.Message}");
+            }
         }
     }
 

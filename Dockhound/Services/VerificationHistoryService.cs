@@ -16,7 +16,7 @@ namespace Dockhound.Services
         public VerificationHistoryService(IDbContextFactory<DockhoundContext> dbFactory)
             => _dbFactory = dbFactory;
 
-        public async Task LogApprovalAsync(ulong guildId, ulong userId, Faction faction, string? imageUrl, ulong? approvedByUserId, CancellationToken ct = default)
+        public async Task LogApprovalAsync(ulong guildId, ulong userId, Faction faction, string? imageUrl, ulong? approvedByUserId, ulong? steam64Id, CancellationToken ct = default)
         {
             await using var db = await _dbFactory.CreateDbContextAsync(ct);
             db.VerificationRecords.Add(new VerificationRecord
@@ -26,7 +26,8 @@ namespace Dockhound.Services
                 Faction = faction,
                 ImageUrl = imageUrl,
                 ApprovedByUserId = approvedByUserId,
-                ApprovedAtUtc = DateTime.UtcNow
+                ApprovedAtUtc = DateTime.UtcNow,
+                Steam64Id = steam64Id
             });
             await db.SaveChangesAsync(ct);
         }

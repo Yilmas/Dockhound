@@ -1,4 +1,5 @@
 ﻿using Dockhound.Config;
+using Dockhound.Enums;
 using Dockhound.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
@@ -53,19 +54,20 @@ namespace Dockhound.Services
             cfg.Verify.RestrictedAccess ??= new GuildConfig.RestrictedAccessSettings();
             cfg.Verify.RecruitAssignerRoles ??= new List<ulong>();
             cfg.Verify.AllyAssignerRoles ??= new List<ulong>();
+            cfg.Verify.TrustedRoles ??= new List<ulong>();
             cfg.Verify.RestrictedAccess.AlwaysRestrictRoles ??= new List<ulong>();
             cfg.Verify.RestrictedAccess.MemberOnlyRoles ??= new List<ulong>();
         }
 
         private static void MigrateToCurrent(GuildConfig cfg)
         {
-            // v1 -> v2: ensure Roles exists and bump the version
-            if (cfg.SchemaVersion < 2)
+            // ensure Roles exists and bump the version
+            if (cfg.SchemaVersion < 5)
             {
                 cfg.Roles ??= new List<GuildConfig.RoleSet>();
-                cfg.SchemaVersion = 2;
+                cfg.SchemaVersion = 5;
             }
-            // future migrations: if (cfg.SchemaVersion < 3) { ...; cfg.SchemaVersion = 3; }
+            // future migrations: if (cfg.SchemaVersion < 6) { ...; cfg.SchemaVersion = 6; }
         }
 
         public async Task<GuildConfig.RestrictedAccessSettings> GetRestrictedAccessAsync(ulong guildId, CancellationToken ct = default)
@@ -74,7 +76,7 @@ namespace Dockhound.Services
             return cfg.Verify.RestrictedAccess!;
         }
 
-        public Task UpdateRestrictedAccessAsync(ulong guildId, ulong? channelId, ulong? messageId, string? changedBy = null, CancellationToken ct = default)
+        public Task UpdateRestrictedAccessAsync(ulong guildId, ulong? channelId, ulong? messageId, AccessRestriction restrictionLevel, string? changedBy = null, CancellationToken ct = default)
         {
             return PatchAsync(
                 guildId,
@@ -82,6 +84,7 @@ namespace Dockhound.Services
                 {
                     cfg.Verify.RestrictedAccess!.ChannelId = channelId;
                     cfg.Verify.RestrictedAccess!.MessageId = messageId;
+                    cfg.Verify.RestrictedAccess!.CurrentRestrictionLevel = restrictionLevel;
                 },
                 changedBy,
                 ct);
@@ -142,6 +145,17 @@ namespace Dockhound.Services
 
             _cache.Set(CacheKey(guildId), cfg, _cacheOptions);
             return cfg;
+        }
+        public bool TryGetCached(ulong guildId, out GuildConfig? cfg)
+        {
+            if (_cache.TryGetValue(CacheKey(guildId), out GuildConfig cached))
+            {
+                cfg = cached;
+                return true;
+            }
+
+            cfg = null;
+            return false;
         }
 
         public async Task UpdateAsync(ulong guildId, GuildConfig next, string? changedBy = null, CancellationToken ct = default)
