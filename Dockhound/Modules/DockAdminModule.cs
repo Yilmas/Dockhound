@@ -1,6 +1,7 @@
 ﻿using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
+using Dockhound.Components;
 using Dockhound.Config;
 using Dockhound.Enums;
 using Dockhound.Extensions;
@@ -350,190 +351,125 @@ namespace Dockhound.Modules
                 [SlashCommand("info", "Provides information on the verification process.")]
                 public async Task VerifyInfo()
                 {
+                    await DeferAsync(ephemeral: true);
+
                     var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
                     string imageUrl = cfg.Verify.ImageUrl; //_configuration["VERIFY_IMAGEURL"];
+                    var displayName = await _guildSettingsService.GetGuildDisplayNameAsync(Context.Guild.Id) ?? "the server";
+                    var restriction = cfg.Verify?.RestrictedAccess?.CurrentRestrictionLevel ?? AccessRestriction.Open;
+                    var steamRequired = cfg.Verify?.IsSteamRequired ?? false;
 
-                    var embed = new EmbedBuilder()
-                        .WithTitle("Looking to Verify?")
-                        .WithDescription("Follow the steps below to get yourself verified.")
-                        .AddField("Steps to Verify", "1. Enter `/verify me`\n2. Upload your `MAP SCREEN Screenshot`\n3. Select `Colonial` or `Warden`", false)
-                        .AddField("**Required Screenshot**", "Map Screenshot **ONLY**\nScreenshots from **Home Region** OR **Secure Map** will be **rejected**.", false)
-                        .AddField("\u200B​", "\u200B", false)
-                        .AddField("**How long will it take?**", "If you have given us the correct information, one of the officers will handle your request asap.", false)
-                        .WithImageUrl(imageUrl)
-                        .WithColor(Color.Gold)
-                        .WithFooter("Brought to you by Dockhound")
-                        .Build();
+                    var embedInfo = VerifyComponents.BuildInfoEmbed(imageUrl, restriction, displayName, steamRequired);
 
-                    var component = new ComponentBuilder()
-                        .WithButton("Verify", "verify:metoo", ButtonStyle.Success)
-                        .Build();
+                    // Post the info message in the current channel and save its channel/message id to settings
+                    if (Context.Channel is IMessageChannel postChannel)
+                    {
+                        var msg = await postChannel.SendMessageAsync(embed: embedInfo, components: VerifyComponents.BuildInfoComponents());
 
-                    await RespondAsync(embed: embed, components: component);
+                        // persist reference and current restriction level
+                        await _guildSettingsService.UpdateRestrictedAccessAsync(
+                            Context.Guild.Id,
+                            postChannel.Id,
+                            msg.Id,
+                            restriction,
+                            Context.User.Username + "#" + Context.User.Id
+                        );
+
+                        await FollowupAsync($"Info message posted and saved (Channel: {postChannel.Id}, Message: {msg.Id}).", ephemeral: true);
+                        return;
+                    }
+
+                    // fallback: respond with the embed to the admin if channel is not an IMessageChannel
+                    await FollowupAsync(embed: embedInfo, components: VerifyComponents.BuildInfoComponents(), ephemeral: true);
                 }
 
                 [RequireUserPermission(GuildPermission.Administrator)]
-                [SlashCommand("restrict", "Set the channel’s access mode")]
-                public async Task Restrict([Summary("setting", "Restricted / MembersOnly / Open")] AccessRestriction accessLevel)
+                [SlashCommand("restrict", "Set verification access mode")]
+                public async Task VerifyRestrict([Summary("setting", "Restricted / MembersOnly / Open")] AccessRestriction accessLevel)
                 {
                     await DeferAsync(ephemeral: true);
 
                     var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
 
-                    if (Context.Channel is not SocketTextChannel channel)
-                    {
-                        await FollowupAsync("This command can only be used in text channels.", ephemeral: true);
-                        return;
-                    }
-
-                    var membersOnlyRoles = cfg.Verify.RestrictedAccess.MemberOnlyRoles.ToSet();
-                    var alwaysDenyRoles = cfg.Verify.RestrictedAccess.AlwaysRestrictRoles.ToSet();
-
-                    // Active allow list: Restricted has NO whitelist; MembersOnly allows configured roles EXCEPT always-deny
-                    var activeAllow = accessLevel == AccessRestriction.MembersOnly
-                        ? membersOnlyRoles.Except(alwaysDenyRoles).ToHashSet()
-                        : new HashSet<ulong>();
-
-                    // Helper: merge only the fields we manage (preserve others)
-                    static OverwritePermissions Merge(OverwritePermissions? current,
-                        PermValue? view = null, PermValue? send = null, PermValue? appCmds = null)
-                    {
-                        var c = current ?? new OverwritePermissions();
-                        return c.Modify(
-                            viewChannel: view ?? c.ViewChannel,
-                            sendMessages: send ?? c.SendMessages,
-                            useApplicationCommands: appCmds ?? c.UseApplicationCommands
-                        );
-                    }
-
-                    var everyone = Context.Guild.EveryoneRole;
-
-                    // @everyone: View always allowed; Send/AppCmd depends on mode
-                    var everyoneSend = accessLevel == AccessRestriction.Open ? PermValue.Allow : PermValue.Deny;
-                    var mergedEveryone = Merge(channel.GetPermissionOverwrite(everyone),
-                                               view: PermValue.Allow, send: everyoneSend, appCmds: everyoneSend);
-                    await channel.AddPermissionOverwriteAsync(everyone, mergedEveryone);
-
-                    // We only manage overwrites for roles in our config lists; leave all other roles untouched
-                    var managedRoleIds = new HashSet<ulong>(membersOnlyRoles.Concat(alwaysDenyRoles));
-
-                    foreach (var roleId in managedRoleIds)
-                    {
-                        var role = Context.Guild.GetRole(roleId);
-                        if (role is null) continue;
-
-                        var cur = channel.GetPermissionOverwrite(role);
-
-                        // Always-deny roles: hard deny View/Send/AppCmds in ALL modes
-                        if (alwaysDenyRoles.Contains(roleId))
-                        {
-                            var merged = Merge(cur, view: PermValue.Deny, send: PermValue.Deny, appCmds: PermValue.Deny);
-                            await channel.AddPermissionOverwriteAsync(role, merged);
-                            continue;
-                        }
-
-                        // MembersOnly: allow Send/AppCmds for active roles; otherwise revert those fields to Inherit
-                        if (accessLevel == AccessRestriction.MembersOnly && activeAllow.Contains(roleId))
-                        {
-                            var merged = Merge(cur, send: PermValue.Allow, appCmds: PermValue.Allow);
-                            await channel.AddPermissionOverwriteAsync(role, merged);
-                        }
-                        else
-                        {
-                            if (cur.HasValue)
-                            {
-                                var merged = Merge(cur, send: PermValue.Inherit, appCmds: PermValue.Inherit);
-                                await channel.AddPermissionOverwriteAsync(role, merged);
-                            }
-                        }
-                    }
-
-                    var displayName = await _guildSettingsService.GetGuildDisplayNameAsync(Context.Guild.Id) ?? "";
-
-                    // ---------- Banner handling ----------
-                    string? bannerContent = accessLevel switch
-                    {
-                        AccessRestriction.Restricted =>
-                            "## 🔒 Verification is **Restricted**\nNo verification is allowed at this time!",
-                        AccessRestriction.MembersOnly =>
-                            $"## :warning: Pre-Verification is set to **Members Only**\nOnly {displayName} regiment members can verify.",
-                        AccessRestriction.Open => null
-                    };
-
-                    // Always fetch the latest stored ids
-
-                    
-
+                    // Persist new restriction level while preserving stored info message/channel ids
                     var ra = await _guildSettingsService.GetRestrictedAccessAsync(Context.Guild.Id);
-                    var storedChannelId = ra.ChannelId;
-                    var storedMsgId = ra.MessageId;
+                    await _guildSettingsService.UpdateRestrictedAccessAsync(
+                        Context.Guild.Id,
+                        ra.ChannelId,
+                        ra.MessageId,
+                        accessLevel,
+                        Context.User.Username + "#" + Context.User.Id
+                    );
 
-                    if (bannerContent is not null)
+                    // Attempt to update the persisted Info message if available
+                    if (ra.ChannelId.HasValue && ra.MessageId.HasValue)
                     {
-                        if (storedChannelId.HasValue && storedMsgId.HasValue)
+                        var infoChannel = Context.Guild.GetTextChannel(ra.ChannelId.Value);
+                        if (infoChannel is not null)
                         {
                             try
                             {
-                                var bannerChannel =
-                                    Context.Guild.GetTextChannel(storedChannelId.Value) ??
-                                    Context.Guild.GetTextChannel(channel.Id);
-
-                                if (bannerChannel is not null)
+                                var msg = await infoChannel.GetMessageAsync(ra.MessageId.Value) as IUserMessage;
+                                if (msg is not null)
                                 {
-                                    var oldMsg = await bannerChannel.GetMessageAsync(storedMsgId.Value) as IUserMessage;
-                                    if (oldMsg is not null)
-                                        await oldMsg.DeleteAsync();
+                                    var displayName = await _guildSettingsService.GetGuildDisplayNameAsync(Context.Guild.Id) ?? "the server";
+                                    var imageUrl = cfg.Verify.ImageUrl;
+                                    var steamRequired = cfg.Verify.IsSteamRequired;
+
+                                    var infoEmbed = VerifyComponents.BuildInfoEmbed(imageUrl, accessLevel, displayName, steamRequired);
+
+                                    await msg.ModifyAsync(m => m.Embeds = new[] { infoEmbed });
                                 }
                             }
                             catch
                             {
-                                // ignore (message already gone / permissions / etc.)
+                                // ignore failures updating the message (permissions / deleted / etc.)
                             }
                         }
-
-                        var newBanner = await channel.SendMessageAsync(bannerContent);
-
-                        await _guildSettingsService.UpdateRestrictedAccessAsync(Context.Guild.Id, channel.Id, newBanner.Id, accessLevel, Context.User.Username + "#" + Context.User.Id);
                     }
                     else
                     {
-                        if (storedChannelId.HasValue && storedMsgId.HasValue)
+                        // No stored info message; create one in the channel the command was executed in
+                        if (Context.Channel is IMessageChannel createChannel)
                         {
                             try
                             {
-                                var bannerChannel =
-                                    Context.Guild.GetTextChannel(storedChannelId.Value) ??
-                                    Context.Guild.GetTextChannel(channel.Id);
+                                var displayName = await _guildSettingsService.GetGuildDisplayNameAsync(Context.Guild.Id) ?? "the server";
+                                var imageUrl = cfg.Verify.ImageUrl;
+                                var steamRequired = cfg.Verify.IsSteamRequired;
 
-                                if (bannerChannel is not null)
-                                {
-                                    var oldMsg = await bannerChannel.GetMessageAsync(storedMsgId.Value) as IUserMessage;
-                                    if (oldMsg is not null)
-                                        await oldMsg.DeleteAsync();
-                                }
+                                var infoEmbed = VerifyComponents.BuildInfoEmbed(imageUrl, accessLevel, displayName, steamRequired);
+                                var posted = await createChannel.SendMessageAsync(embed: infoEmbed, components: VerifyComponents.BuildInfoComponents());
+
+                                await _guildSettingsService.UpdateRestrictedAccessAsync(
+                                    Context.Guild.Id,
+                                    createChannel.Id,
+                                    posted.Id,
+                                    accessLevel,
+                                    Context.User.Username + "#" + Context.User.Id
+                                );
                             }
-                            catch { /* ignore */ }
-
-                            await _guildSettingsService.UpdateRestrictedAccessAsync(Context.Guild.Id, null, null, AccessRestriction.Open, Context.User.Username + "#" + Context.User.Id);
+                            catch
+                            {
+                                // ignore
+                            }
                         }
                     }
-                    // ---------- end banner handling ----------
 
                     await FollowupAsync(
                         accessLevel switch
                         {
                             AccessRestriction.Open =>
-                                "Channel mode set to **Open**. Everyone can send messages and use application commands (banner removed).",
+                                "Verification mode set to **Open**.",
                             AccessRestriction.MembersOnly =>
-                                $"Channel mode set to **MembersOnly**. Only configured roles can send messages and use application commands ({activeAllow.Count} role(s)).",
+                                "Verification mode set to **MembersOnly**.",
                             AccessRestriction.Restricted =>
-                                "Channel mode set to **Restricted**. Send messages and application commands are disabled for everyone (view remains allowed).",
-                            _ => $"Channel mode set to **{accessLevel}**."
+                                "Verification mode set to **Restricted**.",
+                            _ => $"Verification mode set to **{accessLevel}**."
                         },
                         ephemeral: true
                     );
                 }
-
             }
         }
     }
