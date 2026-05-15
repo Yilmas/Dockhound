@@ -321,6 +321,67 @@ namespace Dockhound.Modules
                         : $"Whiteboard **{wb.Title}** unarchived.",
                     ephemeral: true);
             }
+
+            [SlashCommand("list", "List all whiteboards in the current channel")]
+            public async Task ListAsync()
+            {
+                await DeferAsync(ephemeral: true);
+
+                if (Context.Guild is null)
+                {
+                    await FollowupAsync("This command must be used inside a guild.", ephemeral: true);
+                    return;
+                }
+
+                var channelId = Context.Channel.Id;
+
+                var whiteboards = await _db.Whiteboards
+                    .Include(w => w.Versions)
+                    .Where(w => w.GuildId == Context.Guild.Id && w.ChannelId == channelId)
+                    .OrderBy(w => w.Id)
+                    .ToListAsync();
+
+                if (!whiteboards.Any())
+                {
+                    await FollowupAsync("No whiteboards found in this channel.", ephemeral: true);
+                    return;
+                }
+
+                var sb = new System.Text.StringBuilder();
+
+                foreach (var wb in whiteboards)
+                {
+                    var latest = wb.Versions?.OrderByDescending(v => v.VersionIndex).FirstOrDefault();
+                    var title = string.IsNullOrWhiteSpace(wb.Title) ? $"WB-{wb.Id}" : wb.Title.Replace("[", "\\[").Replace("]", "\\]");
+
+                    string entry;
+                    if (wb.MessageId != 0)
+                    {
+                        var url = $"https://discord.com/channels/{Context.Guild.Id}/{wb.ChannelId}/{wb.MessageId}";
+                        entry = $"• [{title}]({url}) — WB-{wb.Id} — v{latest?.VersionIndex ?? 0} by <@{latest?.EditorId ?? wb.CreatedById}>{(wb.IsArchived ? " 🔒" : "")}";
+                    }
+                    else
+                    {
+                        entry = $"• {title} — WB-{wb.Id} — (no message) — v{latest?.VersionIndex ?? 0} by <@{latest?.EditorId ?? wb.CreatedById}>{(wb.IsArchived ? " 🔒" : "")}";
+                    }
+
+                    sb.AppendLine(entry);
+                }
+
+                var content = sb.ToString();
+
+                // If too long for a message, send as a file
+                if (content.Length > 3800)
+                {
+                    var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+                    await using var ms = new System.IO.MemoryStream(bytes);
+                    await FollowupWithFileAsync(ms, $"whiteboards-{channelId}.txt", text: $"Whiteboards in {MentionUtils.MentionChannel(channelId)}:", ephemeral: true);
+                }
+                else
+                {
+                    await FollowupAsync($"Whiteboards in {MentionUtils.MentionChannel(channelId)}:\n{content}", ephemeral: true);
+                }
+            }
         }
     }
         

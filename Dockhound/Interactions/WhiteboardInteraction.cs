@@ -4,6 +4,7 @@ using Discord.WebSocket;
 using Dockhound.Components;
 using Dockhound.Enums;
 using Dockhound.Extensions;
+using Dockhound.Logs;
 using Dockhound.Modals;
 using Dockhound.Models;
 using Microsoft.EntityFrameworkCore;
@@ -89,7 +90,7 @@ namespace Dockhound.Interactions
                     style: TextInputStyle.Paragraph,
                     placeholder: null,
                     minLength: null,
-                    maxLength: 1900,
+                    maxLength: 3800,
                     required: null,
                     value: latestContent
                 );
@@ -131,8 +132,12 @@ namespace Dockhound.Interactions
 
             // Compute edit distance and % changed
             var dist = oldContent.LevenshteinDistance(newContent, ignoreCase: true);
-            var maxLen = Math.Max(oldContent.Length, 1);                // avoid /0
+            // Use the larger of the old/new lengths to avoid percent > 100 when new content is much longer
+            var maxLen = Math.Max(Math.Max(oldContent.Length, newContent.Length), 1); // avoid /0
             var percent = Math.Round((decimal)dist / maxLen * 100m, 2);
+            // Safety clamp to the sensible range for the DB column
+            if (percent < 0m) percent = 0m;
+            if (percent > 100m) percent = 100m;
 
             var ver = new WhiteboardVersion
             {
@@ -148,8 +153,87 @@ namespace Dockhound.Interactions
             };
 
             _dbContext.WhiteboardVersions.Add(ver);
-            await _dbContext.SaveChangesAsync();
 
+            try
+            {
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateException dbEx)
+            {
+                // Likely a DB constraint (string too long or numeric out of range).
+                var explanation = "Could not save your changes due to a database constraint (content too long or value out of range). " +
+                                  "Your text is included below so you don't lose it — please shorten it and try again.";
+
+                try
+                {
+                    if (!string.IsNullOrEmpty(newContent) && newContent.Length > 3800)
+                    {
+                        var bytes = Encoding.UTF8.GetBytes(newContent);
+                        await using var ms = new System.IO.MemoryStream(bytes);
+                        ms.Position = 0;
+                        await FollowupWithFileAsync(ms, $"whiteboard-{wb.Id}-content.txt", text: explanation, ephemeral: true);
+                    }
+                    else
+                    {
+                        var safe = string.IsNullOrEmpty(newContent) ? "(empty)" : newContent;
+                        await FollowupAsync($"{explanation}\n\n{safe}", ephemeral: true);
+                    }
+                }
+                catch
+                {
+                    await FollowupAsync("Could not save your changes and failed to return the text. Please copy your text locally and try again.", ephemeral: true);
+                }
+
+                // Prevent logger or later DB operations from attempting to re-save the same failing entity.
+                try { _dbContext.ChangeTracker.Clear(); } catch { /* best-effort */ }
+
+                Console.WriteLine($"[DB ERROR] Failed to save whiteboard version for wb:{wb.Id} v:{ver.VersionIndex}: {dbEx.Message}");
+                if (dbEx.InnerException != null)
+                    Console.WriteLine($"[DB ERROR INNER] {dbEx.InnerException.Message}");
+
+                return;
+            }
+            catch (Exception ex)
+            {
+                var explanation = "An unexpected error occurred while saving your changes. Your text is included below so you don't lose it.";
+
+                try
+                {
+                    if (!string.IsNullOrEmpty(newContent) && newContent.Length > 3800)
+                    {
+                        var bytes = Encoding.UTF8.GetBytes(newContent);
+                        await using var ms = new System.IO.MemoryStream(bytes);
+                        ms.Position = 0;
+                        await FollowupWithFileAsync(ms, $"whiteboard-{wb.Id}-content.txt", text: explanation, ephemeral: true);
+                    }
+                    else
+                    {
+                        var safe = string.IsNullOrEmpty(newContent) ? "(empty)" : newContent;
+                        await FollowupAsync($"{explanation}\n\n{safe}", ephemeral: true);
+                    }
+                }
+                catch
+                {
+                    await FollowupAsync("Could not save your changes and failed to return the text. Please copy your text locally and try again.", ephemeral: true);
+                }
+
+                // Detach tracked entities so logging can write without attempting to re-persist the failing entity.
+                try { _dbContext.ChangeTracker.Clear(); } catch { /* best-effort */ }
+
+                try
+                {
+                    await ExceptionHandler.HandleExceptionAsync(ex, _dbContext, $"Saving whiteboard {wb.Id} version {ver.VersionIndex}");
+                }
+                catch (Exception logEx)
+                {
+                    Console.WriteLine($"[ERROR] Failed to log exception to database: {logEx.Message}");
+                    Console.WriteLine($"[STACK TRACE] {logEx.StackTrace}");
+                }
+
+                return;
+            }
+
+            // Update the posted whiteboard message with the new content
             if (await Context.Client.GetChannelAsync(wb.ChannelId) is IMessageChannel ch
                 && await ch.GetMessageAsync(wb.MessageId) is IUserMessage msg)
             {
@@ -208,16 +292,26 @@ namespace Dockhound.Interactions
             var options = versions.Select(v =>
             {
                 var unix = new DateTimeOffset(v.EditedUtc).ToUnixTimeSeconds();
+
+                // Resolve username without creating a mention (select menus disallow mentions)
+                string editorName = null;
+                if (Context.Guild is SocketGuild sg)
+                    editorName = sg.GetUser(v.EditorId)?.Username;
+                if (string.IsNullOrEmpty(editorName))
+                    editorName = Context.Client.GetUser(v.EditorId)?.Username;
+                if (string.IsNullOrEmpty(editorName))
+                    editorName = v.EditorId.ToString(); // fallback to id if username cannot be resolved
+
                 return new SelectMenuOptionBuilder()
-                    .WithLabel($"#{v.VersionIndex} • {v.PercentChanged}% • <t:{unix}:R>")
+                    .WithLabel($"#{v.VersionIndex} • {v.PercentChanged}% • {v.EditedUtc.ToLocalTime()}")
                     .WithValue($"wb:{wbId}|v:{v.VersionIndex}")
-                    .WithDescription($"by {MentionUtils.MentionUser(v.EditorId)} (+{v.NewLength - v.PrevLength} chars)");
+                    .WithDescription($"by {editorName} (+{v.NewLength - v.PrevLength} chars)");
             }).ToList();
 
             var menu = new SelectMenuBuilder()
                 .WithCustomId($"wb:pick:{wbId}")
                 .WithPlaceholder("Select a version to clone…")
-                .WithType(ComponentType.SelectMenu) 
+                .WithType(ComponentType.SelectMenu)
                 .WithMinValues(1)
                 .WithMaxValues(1)
                 .WithOptions(options);

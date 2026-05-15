@@ -69,8 +69,6 @@ namespace Dockhound.Components
 
             eb.Description = $"{body}{meta}";
 
-            eb.WithFooter("Brought to you by Dockhound");
-
             return eb.Build();
         }
     }
