@@ -148,7 +148,6 @@ namespace Dockhound.Modules
                     cfg.Verify.TrustedRoles ??= new List<ulong>();
                     cfg.Verify.RestrictedAccess.AlwaysRestrictRoles ??= new List<ulong>();
                     cfg.Verify.RestrictedAccess.MemberOnlyRoles ??= new List<ulong>();
-                    cfg.Verify.IsSteamRequired = false;
 
                     // Persist
                     try
