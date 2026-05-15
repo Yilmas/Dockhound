@@ -1,6 +1,8 @@
 ﻿using Discord;
 using Discord.Interactions;
+using Discord.Rest;
 using Discord.WebSocket;
+using Dockhound.Components;
 using Dockhound.Enums;
 using Dockhound.Logs;
 using Dockhound.Modals;
@@ -11,6 +13,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Net.Mail;
 using System.Text;
@@ -41,7 +44,7 @@ namespace Dockhound.Interactions
         }
 
         // APPROVE
-        [ComponentInteraction("approve-verification")]
+        [ComponentInteraction("verify:approve")]
         public async Task ApproveVerification()
         {
             var comp = (SocketMessageComponent)Context.Interaction;
@@ -50,15 +53,11 @@ namespace Dockhound.Interactions
             var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
 
             var embed = comp.Message.Embeds.FirstOrDefault()?.ToEmbedBuilder();
-            if (embed == null) 
+            if (embed == null)
                 return;
 
             var userIdField = embed.Fields.FirstOrDefault(f => f.Name == "User ID");
             if (userIdField == null || !ulong.TryParse(userIdField.Value?.ToString(), out var userId))
-                return;
-
-            var steamProfile = embed.Fields.FirstOrDefault(f => f.Name == "Steam Profile");
-            if (steamProfile == null)
                 return;
 
             var factionField = embed.Fields.FirstOrDefault(f => f.Name == "Faction");
@@ -78,101 +77,34 @@ namespace Dockhound.Interactions
 
             await DeferAsync(ephemeral: true);
 
-            // Assign roles
-            var factionF = FactionParser.Parse(factionField.Value?.ToString()); // throws if invalid
+            // Assign roles, update message, log, notify user etc. — delegated to helper so it can be reused.
+            var reviewMessage = comp.Message as IUserMessage;
 
-            var rolesToAssign = await DiscordRolesList.GetDeltaRoleIdListAsync(
-                _guildSettingsService, // IGuildSettingsService injected
-                user,                  // IGuildUser
-                factionF                // Faction enum
-            );
-
-            if (rolesToAssign.Count > 0)
+            // Try to resolve steam64Id from the embed's "Steam Profile" field (if present)
+            ulong? steam64Id = null;
+            var steamProfileField = embed.Fields.FirstOrDefault(f => f.Name == "Steam Profile")?.Value?.ToString();
+            if (!string.IsNullOrWhiteSpace(steamProfileField))
             {
-                await user.AddRolesAsync(rolesToAssign);
-            }
-
-            // Update the review message: footer + remove buttons
-            embed.WithFooter($"Approved ✅ by {Context.User.Username}");
-            await comp.Message.ModifyAsync(m =>
-            {
-                m.Embeds = new[] { embed.Build() };
-                m.Components = new ComponentBuilder().Build();
-            });
-
-            try
-            {
-                var faction = factionField.Value?.ToString();
-
-                var factionSecureChannel = faction?.Trim().ToLowerInvariant() switch
+                try
                 {
-                    "colonial" => cfg.Verify.ColonialSecureChannelId is ulong colonialId ? guild.GetTextChannel(colonialId) : null,
-                    "warden" => cfg.Verify.WardenSecureChannelId is ulong wardenId ? guild.GetTextChannel(wardenId) : null,
-                    _ => null
-                };
-
-                var factionEnum = FactionParser.Parse(faction);
-
-                var attachment = comp.Message.Attachments.FirstOrDefault();
-
-                ulong? steam64Id = null;
-                if (!string.IsNullOrWhiteSpace(factionField.Value?.ToString()))
-                {
-                    var steamResult = await _steamService.ResolveSteam64IdAsync(factionField.Value?.ToString());
-
+                    var steamResult = await _steamService.ResolveSteam64IdAsync(steamProfileField);
                     if (steamResult.Status == SteamResolveStatus.Resolved)
                         steam64Id = steamResult.Steam64Id;
                 }
-
-                await _verificationHistory.LogApprovalAsync(
-                    guildId: Context.Guild.Id,
-                    userId: user.Id,
-                    faction: factionEnum,
-                    imageUrl: attachment?.Url,
-                    approvedByUserId: Context.User.Id,
-                    steam64Id: steam64Id
-                );
-
-                if (factionSecureChannel is null)
-                    return;
-
-                var displayName = await _guildSettingsService.GetGuildDisplayNameAsync(Context.Guild.Id) ?? "";
-
-                await user.SendMessageAsync(
-                    $"✅ Your {displayName} verification has been approved! 🎉 " +
-                    (factionSecureChannel != null
-                        ? $"You now have access to faction-specific channels such as {factionSecureChannel.Mention}."
-                        : "Faction-specific channels are now available to you.")
-                );
-            }
-            catch
-            {
-                Console.WriteLine($"[ERROR] Failed to send a DM to {user.Username}. They may have DMs disabled.");
+                catch
+                {
+                    // ignore resolution errors here; history logging can continue without steam64
+                }
             }
 
-            // Log
-            try
-            {
-                var log = new LogEvent(
-                    eventName: "Verification Handler",
-                    messageId: comp.Message.Id,
-                    username: Context.User.Username,
-                    userId: Context.User.Id,
-                    changes: $"{Context.User.Username} approved access for {user.Username}"
-                );
-                _dbContext.LogEvents.Add(log);
-                await _dbContext.SaveChangesAsync();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
-            }
+            var factionEnum = FactionParser.Parse(factionField.Value?.ToString());
 
+            await CompleteApprovalAsync(reviewMessage, user, factionEnum, Context.User.Id, Context.User.Username, steam64Id);
             await FollowupAsync("Approved.", ephemeral: true);
         }
 
         // DENY
-        [ComponentInteraction("deny-verification")]
+        [ComponentInteraction("verify:deny")]
         public async Task DenyVerification()
         {
             var comp = (SocketMessageComponent)Context.Interaction;
@@ -226,7 +158,7 @@ namespace Dockhound.Interactions
             var embed = message.Embeds.FirstOrDefault()?.ToEmbedBuilder() ?? new EmbedBuilder();
             embed.AddField("Denial Reason", modal.Reason, inline: true);
             embed.WithFooter($"Denied ❌ by {Context.User.Username}");
-            embed.WithColor(Color.Red);
+            embed.WithColor(Discord.Color.Red);
 
             await message.ModifyAsync(m =>
             {
@@ -525,38 +457,234 @@ namespace Dockhound.Interactions
             if (steamUsedByOthers)
                 steamProfileField += "\n⚠️ Provided Steam ID was used by another Discord account.";
 
-            var embed = new EmbedBuilder()
-                .WithTitle("New Verification Submission")
-                .WithDescription(desc)
-                .AddField("Faction", faction.ToString(), inline: true)
-                .AddField("User ID", Context.User.Id.ToString(), inline: true)
-                .AddField("Steam Profile", !string.IsNullOrWhiteSpace(steamProfileField) ? steamProfileField : "-", inline: false)
-                .AddField("Roles to be granted", roleMentions, inline: false)
-                .AddField("Steam history (recent)", string.IsNullOrWhiteSpace(steamHistory) ? "-" : steamHistory, inline: false)
-                .AddField("Faction history (last 5)", string.IsNullOrWhiteSpace(track) ? "-" : track, inline: false)
-                .WithColor(faction == "Colonial" ? Color.DarkGreen : Color.DarkBlue)
-                .WithCurrentTimestamp()
-                .WithFooter("Awaiting Approval")
-                .Build();
+            bool isTrusted = cfg.Verify.TrustedRoles?.Any(member.RoleIds.Contains) == true;
 
-            var component = new ComponentBuilder()
-                .WithButton("Approve", "approve-verification", ButtonStyle.Success)
-                .WithButton("Deny", "deny-verification", ButtonStyle.Danger)
-                .Build();
+            if (isTrusted)
+            {
+                // Build approved embed (no action buttons)
 
-            await reviewChannel.SendFileAsync(stream, file.Filename, embed: embed, components: component);
-            
-            // Log the submission event
+                var embedApproved = VerifyComponents.BuildEmbed(
+                    title: "Verification Submission (Auto-Approved)",
+                    description: $"A verification has been auto-approved for {displayName} — ({Context.User.Mention})",
+                    faction: faction,
+                    userId: Context.User.Id,
+                    steamProfile: steamProfileField,
+                    rolesToBeGranted: roleMentions,
+                    steamHistory: steamHistory,
+                    factionHistory: track,
+                    color: faction == "Colonial" ? Discord.Color.DarkGreen : Discord.Color.DarkBlue,
+                    footer: $"Auto-approved ✅ by ({Context.Client.CurrentUser.Username})"
+                );
+
+                var msgReview = await reviewChannel.SendFileAsync(stream, file.Filename, embed: embedApproved, components: new ComponentBuilder().Build());
+
+                // Log the submission event
+                try
+                {
+                    var msg = await GetOriginalResponseAsync();
+
+                    var log = new LogEvent(
+                        eventName: "Verification Module",
+                        messageId: msg.Id,
+                        username: Context.User.Username,
+                        userId: Context.User.Id,
+                        changes: $"{Context.User.Username} has submitted a verification submission."
+                    );
+
+                    _dbContext.LogEvents.Add(log);
+                    await _dbContext.SaveChangesAsync();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
+                }
+
+                await CompleteApprovalAsync(
+                    reviewMessage: msgReview, // no message to update since we're auto-approving
+                    user: member,
+                    factionEnum: FactionParser.Parse(faction),
+                    approvedByUserId: null, // no approver since this is an auto-approval
+                    approvedByName: string.Empty,
+                    steam64Id: steam64Id
+                );
+
+                return "Verification submitted. Please wait for approval.";
+            }
+            else
+            {
+                var embedForReview = VerifyComponents.BuildEmbed(
+                    title: "New Verification Submission",
+                    description: desc,
+                    faction: faction,
+                    userId: Context.User.Id,
+                    steamProfile: steamProfileField,
+                    rolesToBeGranted: roleMentions,
+                    steamHistory: steamHistory,
+                    factionHistory: track,
+                    color: faction == "Colonial" ? Discord.Color.DarkGreen : Discord.Color.DarkBlue,
+                    footer: "Awaiting Approval"
+                );
+
+                await reviewChannel.SendFileAsync(stream, file.Filename, embed: embedForReview, components: VerifyComponents.BuildReviewComponents());
+
+                // Log the submission event
+                try
+                {
+                    var msg = await GetOriginalResponseAsync();
+
+                    var log = new LogEvent(
+                        eventName: "Verification Module",
+                        messageId: msg.Id,
+                        username: Context.User.Username,
+                        userId: Context.User.Id,
+                        changes: $"{Context.User.Username} has submitted a verification submission."
+                    );
+
+                    _dbContext.LogEvents.Add(log);
+                    await _dbContext.SaveChangesAsync();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
+                }
+
+                return "Verification submitted. Please wait for approval.";
+            }
+        }
+
+        private async Task CompleteApprovalAsync(IUserMessage? reviewMessage, IGuildUser user, Faction factionEnum, ulong? approvedByUserId, string approvedByName, ulong? steam64Id = null)
+        {
+            if (reviewMessage is null) return;
+
+            // 1) Assign roles
             try
             {
-                var msg = await GetOriginalResponseAsync();
+                var rolesToAssign = await DiscordRolesList.GetDeltaRoleIdListAsync(
+                    _guildSettingsService,
+                    user,
+                    factionEnum
+                );
 
+                if (rolesToAssign.Count > 0)
+                {
+                    if (user is SocketGuildUser socketUser)
+                    {
+                        await socketUser.AddRolesAsync(rolesToAssign);
+                    }
+                    else if (user is RestGuildUser restUser)
+                    {
+                        foreach (var r in rolesToAssign)
+                        {
+                            try { await restUser.AddRoleAsync(r); }
+                            catch (Exception ex) { Console.WriteLine($"[WARN] AddRoleAsync failed for {restUser.Username}: {ex.Message}"); }
+                        }
+                    }
+                    else
+                    {
+                        try { await user.AddRolesAsync(rolesToAssign); } catch { /* ignore */ }
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"[ERROR] Assigning roles failed: {e.Message}");
+            }
+
+            // 2) Update the review message
+            if(approvedByUserId != null)
+            {
+                // This is manual approval via the "Approve" button.
+                try
+                {
+                    var eb = reviewMessage.Embeds.FirstOrDefault()?.ToEmbedBuilder() ?? new EmbedBuilder();
+                    eb.WithFooter($"Approved ✅ by {approvedByName}");
+                    await reviewMessage.ModifyAsync(m =>
+                    {
+                        m.Embeds = new[] { eb.Build() };
+                        m.Components = new ComponentBuilder().Build();
+                    });
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"[ERROR] Updating review message failed: {e.Message}");
+                }
+            }
+            else
+            {
+                // This is an automatic approval (e.g. via a "Verify Me Too" button).
+                try
+                {
+                    var displayName = (user as SocketGuildUser)?.DisplayName
+                                      ?? user?.Username
+                                      ?? Context.User.Username;
+
+                    var eb = reviewMessage.Embeds.FirstOrDefault()?.ToEmbedBuilder() ?? new EmbedBuilder();
+                    
+                    await reviewMessage.ModifyAsync(m =>
+                    {
+                        m.Embeds = new[] { eb.Build() };
+                        m.Components = new ComponentBuilder().Build();
+                    });
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"[ERROR] Updating review message failed: {e.Message}");
+                }
+            }
+
+            // 3) Record verification history and attempt DM
+            try
+            {
+                var attachmentUrl = reviewMessage.Attachments.FirstOrDefault()?.Url;
+
+                await _verificationHistory.LogApprovalAsync(
+                    guildId: Context.Guild.Id,
+                    userId: user.Id,
+                    faction: factionEnum,
+                    imageUrl: attachmentUrl,
+                    approvedByUserId: approvedByUserId,
+                    steam64Id: steam64Id
+                );
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"[ERROR] Failed to log verification history: {e.Message}");
+            }
+
+            try
+            {
+                var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
+
+                var factionSecureChannel = factionEnum switch
+                {
+                    Faction.Colonial => cfg.Verify.ColonialSecureChannelId is ulong colonialId ? Context.Guild.GetTextChannel(colonialId) : null,
+                    Faction.Warden => cfg.Verify.WardenSecureChannelId is ulong wardenId ? Context.Guild.GetTextChannel(wardenId) : null,
+                    _ => null
+                };
+
+                var displayName = await _guildSettingsService.GetGuildDisplayNameAsync(Context.Guild.Id) ?? "";
+
+                await user.SendMessageAsync(
+                    $"✅ Your {displayName} verification has been approved! 🎉 " +
+                    (factionSecureChannel != null
+                        ? $"You now have access to faction-specific channels such as {factionSecureChannel.Mention}."
+                        : "Faction-specific channels are now available to you.")
+                );
+            }
+            catch
+            {
+                Console.WriteLine($"[ERROR] Failed to send a DM to {user.Username}. They may have DMs disabled.");
+            }
+
+            // 4) Persist a LogEvent (use approvedByUserId when available, otherwise fall back to target user id)
+            try
+            {
                 var log = new LogEvent(
-                    eventName: "Verification Module",
-                    messageId: msg.Id,
-                    username: Context.User.Username,
-                    userId: Context.User.Id,
-                    changes: $"{Context.User.Username} has submitted a verification submission."
+                    eventName: "Verification Handler",
+                    messageId: reviewMessage.Id,
+                    username: approvedByName,
+                    userId: approvedByUserId ?? user.Id,
+                    changes: $"{approvedByName} approved access for {user.Username}"
                 );
 
                 _dbContext.LogEvents.Add(log);
@@ -564,10 +692,8 @@ namespace Dockhound.Interactions
             }
             catch (Exception e)
             {
-                Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
+                Console.WriteLine($"[ERROR] Failed to log approval event: {e.Message}\n{e.StackTrace}");
             }
-
-            return "Verification submitted. Please wait for approval.";
         }
 
         private static string GetSteamResolveErrorMessage(SteamResolveResult steamResult)
