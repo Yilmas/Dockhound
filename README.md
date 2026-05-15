@@ -12,11 +12,15 @@ Your friendly Companion Bot, for when you feel lonely and abandoned in the yard!
 - Verification (auto-role manager)
 	- Restrict channel
 	- Request Recruit & Ally
+	- Trusted roles (auto-approve)
+	- Steam Tracker
 - Bookmark
 - Help
 
 
 ## WIP Features:
+- Faction Swap
+- Proactive Role Monitor
 - Facilitate all Container Colors
 
 ## Notes
