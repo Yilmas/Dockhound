@@ -10,7 +10,7 @@ namespace Dockhound.Modals
 {
     public class VerifyMeSteamOptionalModal : IModal
     {
-        public string Title => "Verification";
+        public string Title => "Your Verification Details";
 
         [InputLabel("Faction")]
         [ModalSelectMenu("verify_faction", minValues: 1, maxValues: 1, Placeholder = "Select faction")]
