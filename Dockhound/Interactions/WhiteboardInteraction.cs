@@ -9,13 +9,7 @@ using Dockhound.Modals;
 using Dockhound.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.ConstrainedExecution;
 using System.Text;
-using System.Threading.Tasks;
-using static Dockhound.Modules.DockModule;
 
 namespace Dockhound.Interactions
 {
@@ -54,13 +48,7 @@ namespace Dockhound.Interactions
         [ComponentInteraction("wb:edit:*")]
         public async Task EditWhiteboardAsync(string wbIdStr)
         {
-            var wbId = long.Parse(wbIdStr);
-
-            var wb = await _dbContext.Whiteboards
-                .Include(w => w.Versions)
-                .FirstOrDefaultAsync(w => w.Id == wbId);
-
-            if (wb is null)
+            if (!long.TryParse(wbIdStr, out var wbId))
                 return;
 
             var caller = (IGuildUser)Context.User;
@@ -70,20 +58,34 @@ namespace Dockhound.Interactions
                 return;
             }
 
-            if (wb.IsArchived)
+            var wbData = await _dbContext.Whiteboards
+                .AsNoTracking()
+                .Where(w => w.Id == wbId)
+                .Select(w => new
+                {
+                    w.Id,
+                    w.IsArchived,
+                    LatestContent = w.Versions
+                        .OrderByDescending(v => v.VersionIndex)
+                        .Select(v => v.Content)
+                        .FirstOrDefault()
+                })
+                .FirstOrDefaultAsync();
+
+            if (wbData is null)
+                return;
+
+            if (wbData.IsArchived)
             {
                 await RespondAsync("This whiteboard is archived and cannot be modified.", ephemeral: true);
                 return;
             }
 
-            var latest = wb.Versions.OrderByDescending(v => v.VersionIndex).FirstOrDefault();
-            var latestContent = latest?.Content ?? string.Empty;
-
-            // Replace this block in EditWhiteboardAsync:
+            var latestContent = wbData.LatestContent ?? string.Empty;
 
             var modal = new ModalBuilder()
                 .WithTitle("Edit Whiteboard")
-                .WithCustomId($"wb:submit:{wb.Id}")
+                .WithCustomId($"wb:submit:{wbId}")
                 .AddTextInput(
                     label: "Content",
                     customId: "wb_content",
@@ -337,6 +339,8 @@ namespace Dockhound.Interactions
                 !int.TryParse(parts[1].Substring(2), out var verIdx))
             { await RespondAsync("Could not parse version data.", ephemeral: true); return; }
 
+            await DeferAsync(ephemeral: true);
+
             var comps = new ComponentBuilder()
                 .WithButton("Clone Selected Version", $"wb:clone:{wbId}|v:{verIdx}", ButtonStyle.Primary)
                 .WithButton("Cancel", $"wb:cancel:{wbId}", ButtonStyle.Secondary)
@@ -344,18 +348,7 @@ namespace Dockhound.Interactions
 
             var msgText = $"Selected version **#{verIdx}**. Click **Clone Selected Version** to create a new whiteboard.";
 
-            if (Context.Interaction is SocketMessageComponent smc)
-            {
-                await smc.UpdateAsync(m =>
-                {
-                    m.Content = msgText;
-                    m.Components = comps;
-                });
-            }
-            else
-            {
-                await RespondAsync(msgText, components: comps, ephemeral: true);
-            }
+            await FollowupAsync(msgText, components: comps, ephemeral: true);
         }
 
         [ComponentInteraction("wb:cancel:*")]
@@ -420,10 +413,12 @@ namespace Dockhound.Interactions
                 return;
             }
 
+            await DeferAsync(ephemeral: true);
+
             var sourceWb = await _dbContext.Whiteboards.Include(w => w.Roles).FirstOrDefaultAsync(w => w.Id == wbId);
             if (sourceWb is null)
             {
-                await RespondAsync("Source whiteboard not found.", ephemeral: true);
+                await FollowupAsync("Source whiteboard not found.", ephemeral: true);
                 return;
             }
 
@@ -432,7 +427,7 @@ namespace Dockhound.Interactions
 
             if (sourceVer is null)
             {
-                await RespondAsync("Selected version not found.", ephemeral: true);
+                await FollowupAsync("Selected version not found.", ephemeral: true);
                 return;
             }
 
@@ -479,7 +474,7 @@ namespace Dockhound.Interactions
 
             if (await Context.Client.GetChannelAsync(newWb.ChannelId) is not IMessageChannel targetCh)
             {
-                await RespondAsync("Could not resolve the target channel for the cloned whiteboard.", ephemeral: true);
+                await FollowupAsync("Could not resolve the target channel for the cloned whiteboard.", ephemeral: true);
                 return;
             }
 
@@ -487,7 +482,7 @@ namespace Dockhound.Interactions
             newWb.MessageId = msg.Id;
             await _dbContext.SaveChangesAsync();
 
-            await RespondAsync($"Created new whiteboard for \"{newWb.Title}\" from version **#{verIdx}**.", ephemeral: true);
+            await FollowupAsync($"Created new whiteboard for \"{newWb.Title}\" from version **#{verIdx}**.", ephemeral: true);
         }
 
         [ComponentInteraction("wb:roles:*")]

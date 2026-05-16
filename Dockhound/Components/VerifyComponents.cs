@@ -21,7 +21,7 @@ namespace Dockhound.Components
                     customId: $"verify:approve",
                     style: ButtonStyle.Success)
                 .WithButton(
-                    label: "History",
+                    label: "Deny",
                     customId: $"verify:deny",
                     style: ButtonStyle.Danger)
                 .Build();
@@ -94,7 +94,7 @@ namespace Dockhound.Components
                 case AccessRestriction.MembersOnly:
                     eb.WithDescription($"Follow the steps below to get yourself verified.\n\u200B")
                       .AddField("⚠️ Members Only!", $"⚠️ Verification is currently limited to {displayName} members!\n\u200B", false)
-                      .AddField("Steps to Verify", "1. Click the button below\n2. Select `Colonial` or `Warden`" + (isSteamRequired ? "\n3. Provide your Steam profile URL or Steam64ID2." : "") + "\n"+(isSteamRequired ? "4" : "3")+". Upload your `MAP SCREEN Screenshot`\n", false)
+                      .AddField("Steps to Verify", "1. Click the button below\n2. Select `Colonial` or `Warden`" + (isSteamRequired ? "\n3. Provide your Steam profile URL or Steam64ID." : "") + "\n"+(isSteamRequired ? "4" : "3")+". Upload your `MAP SCREEN Screenshot`\n", false)
                       .AddField("**Required Screenshot**", "Map Screenshot **ONLY**\nYou will be **rejected** if you submit a screenshot of the Secure Map or from Home Region.", false)
                       .AddField("\u200B​", "\u200B", false)
                       .AddField("**How long will it take?**", "If you have given us the correct information, one of the officers will handle your request asap.", false);
@@ -104,7 +104,7 @@ namespace Dockhound.Components
                 case AccessRestriction.Open:
                 default:
                     eb.WithDescription("Follow the steps below to get yourself verified.")
-                      .AddField("Steps to Verify", "1. Click the button below\n2. Select `Colonial` or `Warden`" + (isSteamRequired ? "\n3. Provide your Steam profile URL or Steam64ID2." : "") + "\n" + (isSteamRequired ? "4" : "3") + ". Upload your `MAP SCREEN Screenshot`\n", false)
+                      .AddField("Steps to Verify", "1. Click the button below\n2. Select `Colonial` or `Warden`" + (isSteamRequired ? "\n3. Provide your Steam profile URL or Steam64ID." : "") + "\n" + (isSteamRequired ? "4" : "3") + ". Upload your `MAP SCREEN Screenshot`\n", false)
                       .AddField("**Required Screenshot**", "Map Screenshot **ONLY**\nYou will be **rejected** if you submit a screenshot of the Secure Map or from Home Region.", false)
                       .AddField("\u200B​", "\u200B", false)
                       .AddField("**How long will it take?**", "If you have given us the correct information, one of the officers will handle your request asap.", false);

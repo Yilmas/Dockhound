@@ -129,30 +129,40 @@ namespace Dockhound.Interactions
         [ModalInteraction("verify-deny-reason:*:*")]
         public async Task SubmitDenyReason(ulong userId, ulong messageId, DenyReasonModal modal)
         {
+            await DeferAsync(ephemeral: true);
+
             var guild = Context.Guild;
             if (guild is null)
+            {
+                await FollowupAsync("Operation failed: guild context is not available.", ephemeral: true);
                 return;
+            }
 
             var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
 
-            // SocketGuild uses cached sync getters
             var user = guild.GetUser(userId);
             if (user is null)
+            {
+                await FollowupAsync("Could not find the target user in this guild.", ephemeral: true);
                 return;
-
-            //if (!ulong.TryParse(_configuration["CHANNEL_VERIFY_REVIEW"], out var reviewChannelId))
-            //    return;
+            }
 
             var verificationChannel = cfg.Verify.ReviewChannelId is ulong id
                         ? guild.GetTextChannel(id)
                         : null;
 
             if (verificationChannel is null)
+            {
+                await FollowupAsync("Verification review channel not configured or not found.", ephemeral: true);
                 return;
+            }
 
             var message = await verificationChannel.GetMessageAsync(messageId) as IUserMessage;
             if (message is null)
+            {
+                await FollowupAsync("Could not find the review message to update.", ephemeral: true);
                 return;
+            }
 
             // Update the embed with the denial reason
             var embed = message.Embeds.FirstOrDefault()?.ToEmbedBuilder() ?? new EmbedBuilder();
@@ -166,19 +176,18 @@ namespace Dockhound.Interactions
                 m.Components = new ComponentBuilder().Build(); // remove approve/deny buttons
             });
 
-            // Notify user via DM (best-effort)
+            // Notify user via DM and then send a single followup about the result
             try
             {
-
                 var displayName = await _guildSettingsService.GetGuildDisplayNameAsync(Context.Guild.Id) ?? "the server";
                 await user.SendMessageAsync($"❌ Your verification for {displayName} has been denied.\n**Reason:** {modal.Reason}");
+
+                await FollowupAsync("Denial reason submitted and user has been notified.", ephemeral: true);
             }
             catch
             {
-                await RespondAsync($"Could not DM {user.Username}. They may have DMs disabled.", ephemeral: true);
+                await FollowupAsync($"Could not DM {user.Username}. They may have DMs disabled.", ephemeral: true);
             }
-
-            await RespondAsync("Denial reason submitted and user has been notified.", ephemeral: true);
 
             // Log the denial
             try
@@ -199,7 +208,6 @@ namespace Dockhound.Interactions
                 Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
             }
         }
-
 
         [ModalInteraction("verify_me_required")]
         public async Task HandleVerifyRequiredAsync(VerifyMeSteamRequiredModal modal)
