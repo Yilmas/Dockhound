@@ -496,11 +496,7 @@ namespace Dockhound.Interactions
 
                             if (u != null)
                             {
-                                string? disc = null;
-                                if (u is SocketUser su) disc = su.Discriminator;
-                                else if (u is RestUser ru) disc = ru.Discriminator;
-
-                                name = !string.IsNullOrWhiteSpace(disc) ? $"{u.Username}#{disc}" : u.Username;
+                                name = u.Username;
                             }
                             else
                             {
@@ -520,7 +516,7 @@ namespace Dockhound.Interactions
                     foreach (var r in merged)
                     {
                         var guildName = await _guildSettingsService.GetGuildDisplayNameAsync(r.GuildId) ?? $"Guild {r.GuildId}";
-                        var ownerName = r.UserId == Context.User.Id ? "You" : await ResolveUsernameAsync(r.UserId);
+                        var ownerName = await ResolveUsernameAsync(r.UserId);
                         var steamStr = r.Steam64Id.HasValue ? r.Steam64Id.Value.ToString() : "-";
 
                         var marks = new List<string>();
