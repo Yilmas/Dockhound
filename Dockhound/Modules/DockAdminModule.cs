@@ -64,6 +64,8 @@ namespace Dockhound.Modules
                 [SlashCommand("view", "Displays current guild settings")]
                 public async Task GetGuildSettings()
                 {
+                    await DeferAsync(ephemeral: true);
+
                     var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
 
                     var node = JsonSerializer.SerializeToNode(
@@ -73,18 +75,15 @@ namespace Dockhound.Modules
 
                     var pretty = node?.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) ?? "{}";
 
-                    // Keep embed under 4096 chars
-                    const int max = 3900; // headroom for code fences
-                    if (pretty.Length > max)
-                        pretty = pretty.Substring(0, max) + "\n... (truncated)";
+                    // Send as downloadable JSON file (viewable in Discord)
+                    var bytes = Encoding.UTF8.GetBytes(pretty);
 
-                    var embed = new EmbedBuilder()
-                        .WithTitle("Guild Settings")
-                        .WithDescription($"```\n{pretty}\n```")
-                        .WithColor(Color.Blue)
-                        .Build();
+                    await using var ms = new MemoryStream(bytes);
+                    ms.Position = 0;
 
-                    await RespondAsync(embed: embed, ephemeral: true);
+                    var filename = $"guild-{Context.Guild.Id}-settings.json";
+                    await FollowupWithFileAsync(ms, filename,
+                        text: $"Guild settings for `{Context.Guild.Id}` (attached).", ephemeral: true);
                 }
 
                 [RequireContext(ContextType.Guild)]
