@@ -14,6 +14,7 @@ using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Net.Mail;
 using System.Text;
@@ -30,6 +31,8 @@ namespace Dockhound.Interactions
         private readonly IGuildSettingsService _guildSettingsService;
         private readonly IVerificationHistoryService _verificationHistory;
         private readonly ISteamService _steamService;
+
+        private const int SteamHistoryTake = 5;
 
         private long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 
@@ -80,16 +83,33 @@ namespace Dockhound.Interactions
             // Assign roles, update message, log, notify user etc. — delegated to helper so it can be reused.
             var reviewMessage = comp.Message as IUserMessage;
 
-            // Try to resolve steam64Id from the embed's "Steam Profile" field (if present)
+            // Try to resolve steam64Id from the embed's "Steam Profile" field (if present).
             ulong? steam64Id = null;
             var steamProfileField = embed.Fields.FirstOrDefault(f => f.Name == "Steam Profile")?.Value?.ToString();
             if (!string.IsNullOrWhiteSpace(steamProfileField))
             {
                 try
                 {
-                    var steamResult = await _steamService.ResolveSteam64IdAsync(steamProfileField);
-                    if (steamResult.Status == SteamResolveStatus.Resolved)
-                        steam64Id = steamResult.Steam64Id;
+                    // Split into lines and pick the first non-empty line that doesn't look like a warning marker or placeholder.
+                    var candidate = steamProfileField
+                        .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(s => s.Trim())
+                        .FirstOrDefault(s => !string.IsNullOrWhiteSpace(s) && !s.StartsWith("⚠️") && s != "-" && s != "\u200b");
+
+                    if (string.IsNullOrWhiteSpace(candidate))
+                        candidate = steamProfileField.Trim();
+
+                    // If the candidate contains additional text after the URL/ID (e.g. appended warnings),
+                    // take the first whitespace-separated token to isolate the URL/ID.
+                    if (!string.IsNullOrWhiteSpace(candidate))
+                    {
+                        candidate = candidate.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries)[0].Trim();
+
+                        // Try resolving the isolated candidate
+                        var steamResult = await _steamService.ResolveSteam64IdAsync(candidate);
+                        if (steamResult.Status == SteamResolveStatus.Resolved)
+                            steam64Id = steamResult.Steam64Id;
+                    }
                 }
                 catch
                 {
@@ -386,78 +406,145 @@ namespace Dockhound.Interactions
                 track = string.Join("\n", lines);
             }
 
-            // Steam checks: detect if this steam64Id was used before, by this user (same or different), or by other users.
-            string steamHistory = "-";
+            // Steam checks
+            string steamHistory = string.Empty;
             bool steamUsedByOthers = false;
             bool steamDiffersFromUserLast = false;
 
+            // recent records for this user (fetch extra to allow merging/deduping)
+            var userRecent = await _dbContext.VerificationRecords
+                .Where(r => r.UserId == Context.User.Id && r.Steam64Id.HasValue)
+                .OrderByDescending(r => r.ApprovedAtUtc)
+                .Take(SteamHistoryTake * 2)
+                .ToListAsync();
+
+            // If user has a last steam and we provided a steam, detect difference
+            var userLast = userRecent.FirstOrDefault();
+            if (userLast != null && userLast.Steam64Id.HasValue && steam64Id.HasValue && userLast.Steam64Id.Value != steam64Id.Value)
+                steamDiffersFromUserLast = true;
+
+            // recent records for this exact Steam64Id (if provided)
+            var exactMatches = new List<VerificationRecord>();
             if (steam64Id.HasValue)
             {
-                // recent records for this exact Steam64Id (last 5)
-                var exactMatches = await _dbContext.VerificationRecords
+                exactMatches = await _dbContext.VerificationRecords
                     .Where(r => r.Steam64Id.HasValue && r.Steam64Id == steam64Id.Value)
                     .OrderByDescending(r => r.ApprovedAtUtc)
-                    .Take(5)
+                    .Take(SteamHistoryTake * 2)
                     .ToListAsync();
+            }
 
-                // recent records for this user (last 5)
-                var userRecent = await _dbContext.VerificationRecords
-                    .Where(r => r.UserId == Context.User.Id && r.Steam64Id.HasValue)
-                    .OrderByDescending(r => r.ApprovedAtUtc)
-                    .Take(5)
-                    .ToListAsync();
+            // Merge, dedupe by record id, sort by time and take up to configured amount
+            var merged = exactMatches
+                .Concat(userRecent)
+                .OrderByDescending(r => r.ApprovedAtUtc)
+                .GroupBy(r => r.Id)
+                .Select(g => g.First())
+                .Take(SteamHistoryTake)
+                .ToList();
 
-                // Determine if user's most-recent steam differs
-                var userLast = userRecent.FirstOrDefault();
-                if (userLast != null && userLast.Steam64Id.HasValue && userLast.Steam64Id.Value != steam64Id.Value)
-                    steamDiffersFromUserLast = true;
-
-                // Determine if this steam64 was used by other users
-                var otherMatches = exactMatches.Where(r => r.UserId != Context.User.Id).ToList();
-                if (otherMatches.Any())
-                    steamUsedByOthers = true;
-
-                // Only provide steam history to reviewers when there is an "offense":
-                // - the supplied Steam64 was used by another Discord account
-                // - the supplied Steam64 differs from this user's last recorded Steam64.
-                if (steamUsedByOthers || steamDiffersFromUserLast)
+            if (merged.Any())
+            {
+                // Precompute steam usage counts for steam ids present in merged
+                var steamIds = merged.Where(r => r.Steam64Id.HasValue).Select(r => r.Steam64Id!.Value).Distinct().ToList();
+                var steamUsageCounts = new Dictionary<ulong, int>();
+                if (steamIds.Any())
                 {
-                    var sb = new List<string>();
+                    var groups = await _dbContext.VerificationRecords
+                        .Where(r => r.Steam64Id.HasValue && steamIds.Contains(r.Steam64Id.Value))
+                        .GroupBy(r => r.Steam64Id!.Value)
+                        .Select(g => new { Steam = g.Key, DistinctUserCount = g.Select(x => x.UserId).Distinct().Count() })
+                        .ToListAsync();
 
-                    if (exactMatches.Any())
-                    {
-                        sb.Add("Recent uses of this Steam64ID:");
-                        foreach (var r in exactMatches)
-                        {
-                            var gName = await _guildSettingsService.GetGuildDisplayNameAsync(r.GuildId) ?? $"Guild {r.GuildId}";
-                            sb.Add($"• User {r.UserId} — <t:{new DateTimeOffset(r.ApprovedAtUtc).ToUnixTimeSeconds()}:R> — {gName}");
-                        }
-                    }
+                    foreach (var g in groups)
+                        steamUsageCounts[g.Steam] = g.DistinctUserCount;
 
-                    if (userRecent.Any())
-                    {
-                        sb.Add("This user's recent Steam64IDs:");
-                        foreach (var r in userRecent)
-                        {
-                            var gName = await _guildSettingsService.GetGuildDisplayNameAsync(r.GuildId) ?? $"Guild {r.GuildId}";
-                            sb.Add($"• {r.Steam64Id} — <t:{new DateTimeOffset(r.ApprovedAtUtc).ToUnixTimeSeconds()}:R> — {gName}");
-                        }
-                    }
+                    // Set global flag whether the provided steam64Id (if any) is used by multiple accounts
+                    if (steam64Id.HasValue && steamUsageCounts.TryGetValue(steam64Id.Value, out var cnt) && cnt > 1)
+                        steamUsedByOthers = true;
+                }
 
-                    steamHistory = string.Join("\n", sb);
-                    if (string.IsNullOrWhiteSpace(steamHistory))
-                        steamHistory = string.Empty;
+                // If the merged results all reference the same Steam64Id (and that Steam64Id exists),
+                // condense the steam history into a single friendly line to save space and show positivity.
+                if (steamIds.Count == 1)
+                {
+                    var singleSteam = steamIds[0];
+                    // oldest record in the merged set (earliest ApprovedAtUtc)
+                    var oldestUtc = merged.Min(r => r.ApprovedAtUtc);
+                    var sharedMark = steamUsageCounts.TryGetValue(singleSteam, out var totalUsers) && totalUsers > 1
+                        ? " ⚠️ Shared"
+                        : string.Empty;
+
+                    steamHistory = $"No changes since <t:{new DateTimeOffset(oldestUtc).ToUnixTimeSeconds()}:R>{sharedMark}";
                 }
                 else
                 {
-                    // No offenses -> leave steamHistory blank
-                    steamHistory = string.Empty;
+                    // Cache resolved Discord usernames to avoid repeated REST calls
+                    var resolvedUsernames = new Dictionary<ulong, string>();
+
+                    async Task<string> ResolveUsernameAsync(ulong uid)
+                    {
+                        if (resolvedUsernames.TryGetValue(uid, out var cached))
+                            return cached;
+
+                        string name;
+                        try
+                        {
+                            IUser? u = Context.Client.GetUser(uid);
+                            if (u == null)
+                                u = await Context.Client.Rest.GetUserAsync(uid);
+
+                            if (u != null)
+                            {
+                                string? disc = null;
+                                if (u is SocketUser su) disc = su.Discriminator;
+                                else if (u is RestUser ru) disc = ru.Discriminator;
+
+                                name = !string.IsNullOrWhiteSpace(disc) ? $"{u.Username}#{disc}" : u.Username;
+                            }
+                            else
+                            {
+                                name = $"User {uid}";
+                            }
+                        }
+                        catch
+                        {
+                            name = $"User {uid}";
+                        }
+
+                        resolvedUsernames[uid] = name;
+                        return name;
+                    }
+
+                    var lines = new List<string>();
+                    foreach (var r in merged)
+                    {
+                        var guildName = await _guildSettingsService.GetGuildDisplayNameAsync(r.GuildId) ?? $"Guild {r.GuildId}";
+                        var ownerName = r.UserId == Context.User.Id ? "You" : await ResolveUsernameAsync(r.UserId);
+                        var steamStr = r.Steam64Id.HasValue ? r.Steam64Id.Value.ToString() : "-";
+
+                        var marks = new List<string>();
+
+                        // Mark if this steam was used by multiple distinct Discord accounts
+                        if (r.Steam64Id.HasValue && steamUsageCounts.TryGetValue(r.Steam64Id.Value, out var cnt) && cnt > 1 && r.UserId != Context.User.Id)
+                            marks.Add("⚠️ Shared");
+
+                        // Mark if the record's steam differs from the currently provided steam (when provided) for user's own records
+                        if (steam64Id.HasValue && r.Steam64Id.HasValue && r.Steam64Id.Value != steam64Id.Value && r.UserId == Context.User.Id)
+                            marks.Add("⚠️ Different");
+
+                        var markText = marks.Any() ? " " + string.Join(" ", marks) : string.Empty;
+
+                        lines.Add($"• {steamStr} — {ownerName} — <t:{new DateTimeOffset(r.ApprovedAtUtc).ToUnixTimeSeconds()}:R> — {guildName}{markText}");
+                    }
+
+                    steamHistory = string.Join("\n", lines);
                 }
             }
             else
             {
-                // No steam provided -> blank
-                steamHistory = string.Empty;
+                // No merged records -> leave empty
+                steamHistory = "No known Steam history.";
             }
 
             // Resolve member and display name
