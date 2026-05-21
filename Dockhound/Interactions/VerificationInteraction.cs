@@ -209,34 +209,6 @@ namespace Dockhound.Interactions
             }
         }
 
-        [ModalInteraction("verify_me_required")]
-        public async Task HandleVerifyRequiredAsync(VerifyMeSteamRequiredModal modal)
-        {
-            await DeferAsync(ephemeral: true);
-
-            var result = await VerifyAsync(
-                modal.File,
-                modal.Faction,
-                modal.Steam64Id,
-                steamRequired: true);
-
-            await FollowupAsync(result, ephemeral: true);
-        }
-
-        [ModalInteraction("verify_me_optional")]
-        public async Task HandleVerifyOptionalAsync(VerifyMeSteamOptionalModal modal)
-        {
-            await DeferAsync(ephemeral: true);
-
-            var result = await VerifyAsync(
-                modal.File,
-                modal.Faction,
-                modal.Steam64Id,
-                steamRequired: false);
-
-            await FollowupAsync(result, ephemeral: true);
-        }
-
         [ComponentInteraction("verify:metoo")]
         public async Task VerifyMeTooButtonAsync()
         {
@@ -307,10 +279,67 @@ namespace Dockhound.Interactions
             }
         }
 
+        [ModalInteraction("verify_me_required")]
+        public async Task HandleVerifyRequiredAsync(VerifyMeSteamRequiredModal modal)
+        {
+            await DeferAsync(ephemeral: true);
+
+            var result = await VerifyAsync(
+                modal.File,
+                modal.Faction,
+                modal.Steam64Id,
+                steamRequired: true);
+
+            await FollowupAsync(result, ephemeral: true);
+        }
+
+        [ModalInteraction("verify_me_optional")]
+        public async Task HandleVerifyOptionalAsync(VerifyMeSteamOptionalModal modal)
+        {
+            await DeferAsync(ephemeral: true);
+
+            var result = await VerifyAsync(
+                modal.File,
+                modal.Faction,
+                modal.Steam64Id,
+                steamRequired: false);
+
+            await FollowupAsync(result, ephemeral: true);
+        }
+
         private async Task<string> VerifyAsync(IAttachment file, string faction, string steamInput, bool steamRequired)
         {
             if (steamRequired && string.IsNullOrWhiteSpace(steamInput))
                 return "Steam ID is required for this server.";
+
+            // Ensure only image files are accepted
+            if (file == null)
+                return "No file uploaded. Please attach an image.";
+
+            var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ".png", ".jpg", ".jpeg", ".gif", ".webp"
+            };
+
+            bool isImage = false;
+
+            // Prefer ContentType when available
+            if (!string.IsNullOrWhiteSpace(file.ContentType) && file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            {
+                isImage = true;
+            }
+            else
+            {
+                // Fallback to file extension
+                var ext = Path.GetExtension(file.Filename ?? string.Empty);
+                if (!string.IsNullOrEmpty(ext) && allowedExtensions.Contains(ext))
+                    isImage = true;
+            }
+
+            if (!isImage)
+            {
+                return "Only image files are allowed. Please upload a PNG, JPG, GIF or WEBP image.";
+            }
 
             ulong? steam64Id = null;
             string? steamProfileUrl = null;
