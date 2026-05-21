@@ -19,102 +19,102 @@ namespace Dockhound.Modules;
 
 public partial class DockModule
 {
-    [CommandContextType(InteractionContextType.Guild)]
-    [Group("tracker", "Tracker options in Dockhound")]
-    public class TrackerModule : InteractionModuleBase<SocketInteractionContext>
-    {
-        private readonly DockhoundContext _dbContext;
+    //[CommandContextType(InteractionContextType.Guild)]
+    //[Group("tracker", "Tracker options in Dockhound")]
+    //public class TrackerModule : InteractionModuleBase<SocketInteractionContext>
+    //{
+    //    private readonly DockhoundContext _dbContext;
 
-        public TrackerModule(DockhoundContext dbContext)
-        {
-            _dbContext = dbContext;
-        }
+    //    public TrackerModule(DockhoundContext dbContext)
+    //    {
+    //        _dbContext = dbContext;
+    //    }
 
-        [DefaultMemberPermissions(GuildPermission.ManageMessages)]
-        [SlashCommand("setup", "Initial setup of a tracker.")]
-        public async Task SetupTracker(TrackerType type, string location)
-        {
-            long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
+    //    [DefaultMemberPermissions(GuildPermission.ManageMessages)]
+    //    [SlashCommand("setup", "Initial setup of a tracker.")]
+    //    public async Task SetupTracker(TrackerType type, string location)
+    //    {
+    //        long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 
-            if (type == TrackerType.Container)
-            {
-                var embed = new EmbedBuilder()
-                    .WithTitle($"{location} Container Yard")
-                    .WithDescription("Last Updated by " + Context.User.Mention + " <t:" + seconds + ":R>")
-                    .AddField("Red", 0, true)
-                    .AddField("Green", 0, true)
-                    .AddField("Blue", 0, true)
-                    .AddField("DarkBlue", 0, true)
-                    .AddField("White", 0, true)
-                    .WithFooter("Brought to you by Dockhound");
+    //        if (type == TrackerType.Container)
+    //        {
+    //            var embed = new EmbedBuilder()
+    //                .WithTitle($"{location} Container Yard")
+    //                .WithDescription("Last Updated by " + Context.User.Mention + " <t:" + seconds + ":R>")
+    //                .AddField("Red", 0, true)
+    //                .AddField("Green", 0, true)
+    //                .AddField("Blue", 0, true)
+    //                .AddField("DarkBlue", 0, true)
+    //                .AddField("White", 0, true)
+    //                .WithFooter("Brought to you by Dockhound");
 
-                var builder = new ComponentBuilder()
-                    .WithButton(label: "Edit Container Count", "btn-container-count", style: ButtonStyle.Secondary);
+    //            var builder = new ComponentBuilder()
+    //                .WithButton(label: "Edit Container Count", "btn-container-count", style: ButtonStyle.Secondary);
 
-                await RespondAsync(embed: embed.Build(), components: builder.Build());
+    //            await RespondAsync(embed: embed.Build(), components: builder.Build());
 
-                try
-                {
-                    var msg = await GetOriginalResponseAsync();
+    //            try
+    //            {
+    //                var msg = await GetOriginalResponseAsync();
 
-                    var log = new LogEvent(
-                        eventName: "Yard Tracker Setup",
-                        messageId: msg.Id,
-                        username: Context.User.Username,
-                        userId: Context.User.Id,
-                        changes: $"Created Yard Tracker: {location}"
-                    );
+    //                var log = new LogEvent(
+    //                    eventName: "Yard Tracker Setup",
+    //                    messageId: msg.Id,
+    //                    username: Context.User.Username,
+    //                    userId: Context.User.Id,
+    //                    changes: $"Created Yard Tracker: {location}"
+    //                );
 
-                    _dbContext.LogEvents.Add(log);
-                    await _dbContext.SaveChangesAsync();
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
-                }
-            }
-        }
+    //                _dbContext.LogEvents.Add(log);
+    //                await _dbContext.SaveChangesAsync();
+    //            }
+    //            catch (Exception e)
+    //            {
+    //                Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
+    //            }
+    //        }
+    //    }
 
-        [SlashCommand("whiteboard", "Setup Whiteboard")]
-        public async Task SetupWhiteboard(string title = "Whiteboard", bool pin = false)
-        {
-            long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
+    //    [SlashCommand("whiteboard", "Setup Whiteboard")]
+    //    public async Task SetupWhiteboard(string title = "Whiteboard", bool pin = false)
+    //    {
+    //        long seconds = (long)DateTime.UtcNow.Subtract(DateTime.UnixEpoch).TotalSeconds;
 
-            var embed = new EmbedBuilder()
-                .WithTitle($"{title}")
-                .WithDescription("**Messages**\nWaiting for Squibbles\n\n_Last Updated by " + Context.User.Mention + " <t:" + seconds + ":R>_")
-                .WithFooter("Brought to you by Dockhound");
+    //        var embed = new EmbedBuilder()
+    //            .WithTitle($"{title}")
+    //            .WithDescription("**Messages**\nWaiting for Squibbles\n\n_Last Updated by " + Context.User.Mention + " <t:" + seconds + ":R>_")
+    //            .WithFooter("Brought to you by Dockhound");
 
-            var builder = new ComponentBuilder()
-                .WithButton(label: "Update Board", "btn-whiteboard-update", style: ButtonStyle.Secondary);
+    //        var builder = new ComponentBuilder()
+    //            .WithButton(label: "Update Board", "btn-whiteboard-update", style: ButtonStyle.Secondary);
 
-            await RespondAsync(embed: embed.Build(), components: builder.Build());
+    //        await RespondAsync(embed: embed.Build(), components: builder.Build());
 
-            if (Context.Interaction.Permissions.ManageMessages && pin)
-            {
-                await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.PinAsync());
-            }
+    //        if (Context.Interaction.Permissions.ManageMessages && pin)
+    //        {
+    //            await GetOriginalResponseAsync().ContinueWith(async (msg) => await msg.Result.PinAsync());
+    //        }
 
-            try
-            {
-                var msg = await GetOriginalResponseAsync();
+    //        try
+    //        {
+    //            var msg = await GetOriginalResponseAsync();
 
-                var log = new LogEvent(
-                    eventName: "Whiteboard Setup",
-                    messageId: msg.Id,
-                    username: Context.User.Username,
-                    userId: Context.User.Id,
-                    changes: $"Created Whiteboard: {title}"
-                );
+    //            var log = new LogEvent(
+    //                eventName: "Whiteboard Setup",
+    //                messageId: msg.Id,
+    //                username: Context.User.Username,
+    //                userId: Context.User.Id,
+    //                changes: $"Created Whiteboard: {title}"
+    //            );
 
-                _dbContext.LogEvents.Add(log);
-                await _dbContext.SaveChangesAsync();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
-            }
-        }
-    }
+    //            _dbContext.LogEvents.Add(log);
+    //            await _dbContext.SaveChangesAsync();
+    //        }
+    //        catch (Exception e)
+    //        {
+    //            Console.WriteLine($"[ERROR] Failed to log event: {e.Message}\n{e.StackTrace}");
+    //        }
+    //    }
+    //}
 }
 
