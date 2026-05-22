@@ -282,7 +282,7 @@ namespace Dockhound.Interactions
                 if (isAlwaysRestricted || !hasAllowedRole)
                 {
                     await RespondAsync(
-                        "Verification is currently limited to configured member roles.",
+                        "Verification is currently limited to configured allowed roles.",
                         ephemeral: true);
 
                     return;

@@ -47,9 +47,61 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
     public async Task VerifyAsync()
     {
         var steamRequired = false;
+        var restrictionLevel = AccessRestriction.Open;
 
         if (_guildSettingsService.TryGetCached(Context.Guild.Id, out var cfg))
+        {
             steamRequired = cfg?.Verify?.IsSteamRequired == true;
+            restrictionLevel = cfg?.Verify?.RestrictedAccess?.CurrentRestrictionLevel ?? AccessRestriction.Open;
+        }
+
+        if (restrictionLevel == AccessRestriction.Restricted)
+        {
+            await RespondAsync(
+                "Verification is currently restricted. Please try again later.",
+                ephemeral: true);
+
+            return;
+        }
+
+        if (restrictionLevel == AccessRestriction.MembersOnly)
+        {
+            var member = Context.User as SocketGuildUser;
+
+            if (member is null)
+            {
+                await RespondAsync(
+                    "This can only be used inside a server.",
+                    ephemeral: true);
+
+                return;
+            }
+
+            var memberOnlyRoles = cfg?.Verify?.RestrictedAccess?.MemberOnlyRoles?.ToHashSet()
+                ?? new HashSet<ulong>();
+
+            var alwaysRestrictRoles = cfg?.Verify?.RestrictedAccess?.AlwaysRestrictRoles?.ToHashSet()
+                ?? new HashSet<ulong>();
+
+            var allowedRoles = memberOnlyRoles
+                .Except(alwaysRestrictRoles)
+                .ToHashSet();
+
+            var userRoleIds = member.Roles
+                .Select(role => role.Id);
+
+            var hasAllowedRole = allowedRoles.Overlaps(userRoleIds);
+            var isAlwaysRestricted = alwaysRestrictRoles.Overlaps(userRoleIds);
+
+            if (isAlwaysRestricted || !hasAllowedRole)
+            {
+                await RespondAsync(
+                    "Verification is currently limited to configured allowed roles.",
+                    ephemeral: true);
+
+                return;
+            }
+        }
 
         if (steamRequired)
         {
