@@ -241,6 +241,39 @@ namespace Dockhound.Interactions
                 restrictionLevel = cfg?.Verify?.RestrictedAccess?.CurrentRestrictionLevel ?? AccessRestriction.Open;
             }
 
+            // Always attempt to log diagnostic info (best-effort) before any early returns
+            try
+            {
+                var member = Context.User as SocketGuildUser;
+                var userRoleNames = member is not null
+                    ? member.Roles.Select(r => r.Name).Where(n => !string.IsNullOrWhiteSpace(n)).ToList()
+                    : new List<string>();
+
+                string allowedRolesDisplay;
+                if (restrictionLevel == AccessRestriction.MembersOnly)
+                {
+                    var memberOnlyRoles = cfg?.Verify?.RestrictedAccess?.MemberOnlyRoles ?? new List<ulong>();
+                    var alwaysRestrictRoles = cfg?.Verify?.RestrictedAccess?.AlwaysRestrictRoles ?? new List<ulong>();
+                    var allowed = memberOnlyRoles.Except(alwaysRestrictRoles).ToList();
+                    var allowedNames = allowed.Select(id => Context.Guild?.GetRole(id)?.Name ?? id.ToString()).ToList();
+                    allowedRolesDisplay = allowedNames.Any() ? string.Join(", ", allowedNames) : "(none)";
+                }
+                else if (restrictionLevel == AccessRestriction.Open)
+                {
+                    allowedRolesDisplay = "(all)";
+                }
+                else // Restricted
+                {
+                    allowedRolesDisplay = "(none)";
+                }
+
+                Console.WriteLine($"[VERIFY] User={Context.User.Username}({Context.User.Id}) Roles=[{string.Join(", ", userRoleNames)}] Mode={restrictionLevel} AllowedRoles=[{allowedRolesDisplay}]");
+            }
+            catch
+            {
+                // keep logging best-effort and never block the user flow
+            }
+
             if (restrictionLevel == AccessRestriction.Restricted)
             {
                 await RespondAsync(
