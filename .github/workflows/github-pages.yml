@@ -1,5 +1,5 @@
-# Build and deploy the Jekyll site from /docs to GitHub Pages
-name: Deploy Jekyll site to GitHub Pages
+# Build and deploy the Docsify site from /docs to GitHub Pages
+name: Deploy Docsify site to GitHub Pages
 
 on:
   push:
