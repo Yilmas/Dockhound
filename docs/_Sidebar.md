@@ -1,6 +1,6 @@
 ## Documentation
 
-* [Home](README.md)
+* [Home](/)
 * [Help](Users/help.md)
 * Users
   * [User Guide](Users/README.md)
