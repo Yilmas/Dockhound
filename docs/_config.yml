@@ -1,9 +1,0 @@
-title: Dockhound Wiki
-description: A wiki for Dockhound, a tool for Foxhole
-baseurl: ""
-url: ""
-theme: minima
-markdown: kramdown
-kramdown:
-  input: GFM
-permalink: pretty
