@@ -10,7 +10,7 @@ Upload a GuildConfig JSON file to replace or update the guild's configuration.
 
 **Parameters**
 
-- `file`: file — A JSON file containing a valid GuildConfig structure.
+- `file`: A JSON file containing a valid GuildConfig structure.
 
 **Permissions**
 

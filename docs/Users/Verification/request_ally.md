@@ -1,4 +1,4 @@
-# Request Ally � Context Command / Flow
+# Request Ally Context Command / Flow
 
 **Command**
 

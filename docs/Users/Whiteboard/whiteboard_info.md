@@ -10,7 +10,7 @@ Show details about a whiteboard, including allowed roles, creator, latest versio
 
 **Parameters**
 
-- `message_id`: text — The message id for the whiteboard.
+- `message_id`: The message id for the whiteboard.
 
 **Permissions**
 

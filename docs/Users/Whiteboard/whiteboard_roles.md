@@ -10,7 +10,7 @@ Set or update allowed roles for a MembersOnly whiteboard. This command requires 
 
 **Parameters**
 
-- `message_id`: text — The message id for the whiteboard reference message.
+- `message_id`: The message id for the whiteboard reference message.
 
 **Permissions**
 

@@ -10,12 +10,12 @@ Create a new collaborative whiteboard in the current channel.
 
 **Parameters**
 
-- `title`: text — The title for the new whiteboard.
-- `mode`: choice — AccessRestriction (Open | MembersOnly | Restricted). Default: Open.
+- `title`: The title for the new whiteboard.
+- `mode`: AccessRestriction (Open | MembersOnly | Restricted). Default: Open.
 
 **Permissions**
 
-- Any user can run this command to create a whiteboard. If you choose MembersOnly mode, the command will prompt for roles — setting allowed roles requires **Manage Channels** permission.
+- Any user can run this command to create a whiteboard. If you choose MembersOnly mode, the command will prompt for roles ï¿½ setting allowed roles requires **Manage Channels** permission.
 
 **Behavior**
 

@@ -10,7 +10,7 @@ Toggle archive state on a whiteboard (close or reopen it). This command requires
 
 **Parameters**
 
-- `message_id`: text — The message id for the whiteboard.
+- `message_id`: The message id for the whiteboard.
 
 **Permissions**
 

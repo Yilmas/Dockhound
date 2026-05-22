@@ -1,4 +1,4 @@
-# Verification — Overview & Flow
+# Verification Overview & Flow
 
 **Top-level invocation prefixes:** `/dock verify` (user interactions) and `/dockadmin verify` (administration)
 

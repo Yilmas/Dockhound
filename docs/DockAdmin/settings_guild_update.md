@@ -10,8 +10,8 @@ Update the stored guild name and/or short tag used by the bot's internal data.
 
 **Parameters**
 
-- `name`: text (optional) — New display name for the guild.
-- `tag`: text (optional) — Short identifier tag for the guild.
+- `name`: text (optional) New display name for the guild.
+- `tag`: text (optional) Short identifier tag for the guild.
 
 **Permissions**
 

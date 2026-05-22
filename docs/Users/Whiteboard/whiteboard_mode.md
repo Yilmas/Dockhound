@@ -10,8 +10,8 @@ Change the privacy mode of an existing whiteboard. This command requires **Manag
 
 **Parameters**
 
-- `message_id`: text — The message id for the whiteboard reference message.
-- `mode`: choice — AccessRestriction (Open | MembersOnly | Restricted).
+- `message_id`: The message id for the whiteboard reference message.
+- `mode`: AccessRestriction (Open | MembersOnly | Restricted).
 
 **Permissions**
 

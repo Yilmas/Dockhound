@@ -10,7 +10,7 @@ Set the verification access mode for the guild (Open / MembersOnly / Restricted)
 
 **Parameters**
 
-- `setting`: choice — AccessRestriction (Open | MembersOnly | Restricted).
+- `setting`: AccessRestriction (Open | MembersOnly | Restricted).
 
 **Permissions**
 

@@ -10,8 +10,8 @@ Show all log events for a given message id over a specified timespan in days. Gr
 
 **Parameters**
 
-- `message_id`: text — Discord message ID to look up.
-- `days_span`: number — Days into the past to include (positive number). The command internally negates it to compute the cutoff.
+- `message_id`: Discord message ID to look up.
+- `days_span`: Days into the past to include (positive number). The command internally negates it to compute the cutoff.
 
 **Permissions**
 
