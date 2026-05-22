@@ -28,15 +28,32 @@ namespace Dockhound.Interactions
 
         private async Task<bool> CanEditAsync(IGuildUser user, long wbId)
         {
-            if (user.GuildPermissions.ManageChannels) return true;
-
             var wb = await _dbContext.Whiteboards
                 .AsNoTracking()
                 .Where(w => w.Id == wbId)
-                .Select(w => new { w.Mode })
+                .Select(w => new { w.Mode, w.ChannelId })
                 .FirstOrDefaultAsync();
 
             if (wb is null) return false;
+
+            // Channel-level permission check using permission overwrites:
+            if (Context.Guild is SocketGuild sg)
+            {
+                var channel = sg.GetTextChannel(wb.ChannelId);
+                if (channel is not null)
+                {
+                    // Resolve a SocketGuildUser when possible (needed for GetPermissions)
+                    var socketUser = sg.GetUser(user.Id) ?? (user as SocketGuildUser);
+                    if (socketUser is not null)
+                    {
+                        // Use the user's channel permissions (this accounts for overwrites)
+                        var perms = socketUser.GetPermissions(channel);
+                        if (perms.ManageChannel || perms.PinMessages)
+                            return true;
+                    }
+                }
+            }
+
             if (wb.Mode == AccessRestriction.Open) return true;
             if (wb.Mode != AccessRestriction.MembersOnly) return false;
 
@@ -255,23 +272,63 @@ namespace Dockhound.Interactions
 
 
         [ComponentInteraction("wb:history:*")]
-        public async Task HistoryAsync(string wbIdStr)
+        public async Task GetHistoryAsync(string wbIdStr)
         {
             if (!long.TryParse(wbIdStr, out var wbId))
                 return;
 
             var caller = (IGuildUser)Context.User;
-            if (!caller.GuildPermissions.ManageChannels)
-            {
-                await RespondAsync("History requires **Manage Channels**.", ephemeral: true);
-                return;
-            }
 
+            // Load whiteboard early so we can inspect its channel for channel-level permission checks
             var wb = await _dbContext.Whiteboards
                 .FirstOrDefaultAsync(w => w.Id == wbId && w.GuildId == Context.Guild.Id);
 
             if (wb is null)
                 return;
+
+            // Channel-level permission check using permission overwrites:
+            if (Context.Guild is SocketGuild sg)
+            {
+                var channel = sg.GetTextChannel(wb.ChannelId);
+                if (channel is not null)
+                {
+                    // Resolve a SocketGuildUser when possible (needed for GetPermissions)
+                    var socketUser = sg.GetUser(caller.Id) ?? (caller as SocketGuildUser);
+                    if (socketUser is not null)
+                    {
+                        // Use the user's channel permissions (this accounts for overwrites)
+                        var perms = socketUser.GetPermissions(channel);
+                        if (perms.ManageChannel || perms.PinMessages)
+                        {
+                            // allowed — continue to history logic below
+                        }
+                        else
+                        {
+                            await RespondAsync("History requires **Moderator-level channel permissions**.", ephemeral: true);
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        await RespondAsync("History requires **Moderator-level channel permissions**.", ephemeral: true);
+                        return;
+                    }
+                }
+                else
+                {
+                    await RespondAsync("Could not resolve the whiteboard channel for permission check.", ephemeral: true);
+                    return;
+                }
+            }
+            else
+            {
+                // Fallback for non-socket guilds: keep original guild-permission check
+                if (!caller.GuildPermissions.ManageChannels)
+                {
+                    await RespondAsync("History requires **Manage Channels**.", ephemeral: true);
+                    return;
+                }
+            }
 
             if (wb.IsArchived)
             {
@@ -297,8 +354,8 @@ namespace Dockhound.Interactions
 
                 // Resolve username without creating a mention (select menus disallow mentions)
                 string editorName = null;
-                if (Context.Guild is SocketGuild sg)
-                    editorName = sg.GetUser(v.EditorId)?.Username;
+                if (Context.Guild is SocketGuild sg2)
+                    editorName = sg2.GetUser(v.EditorId)?.Username;
                 if (string.IsNullOrEmpty(editorName))
                     editorName = Context.Client.GetUser(v.EditorId)?.Username;
                 if (string.IsNullOrEmpty(editorName))

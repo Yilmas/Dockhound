@@ -347,9 +347,68 @@ namespace Dockhound.Modules
                     return;
                 }
 
-                var sb = new System.Text.StringBuilder();
+                // Verify messages still exist for whiteboards that reference a MessageId.
+                // If a referenced message or channel no longer exists, set IsDeleted = true (persist the change)
+                // so the list only shows whiteboards with IsDeleted == false.
+                var anyChanges = false;
 
                 foreach (var wb in whiteboards)
+                {
+                    if (wb.IsDeleted)
+                        continue; // already marked deleted, skip verification
+
+                    if (wb.MessageId == 0)
+                    {
+                        // No message associated -> treat as deleted/missing for listing purposes.
+                        wb.IsDeleted = true;
+                        anyChanges = true;
+                        continue;
+                    }
+
+                    try
+                    {
+                        var ch = await Context.Client.GetChannelAsync(wb.ChannelId);
+                        if (ch is not IMessageChannel msgCh)
+                        {
+                            wb.IsDeleted = true;
+                            anyChanges = true;
+                            continue;
+                        }
+
+                        var msg = await msgCh.GetMessageAsync(wb.MessageId);
+                        if (msg is null)
+                        {
+                            // Message was deleted -> mark whiteboard as deleted
+                            wb.IsDeleted = true;
+                            anyChanges = true;
+                        }
+                    }
+                    catch
+                    {
+                        // On error (permissions, network, etc.) assume message is gone and mark deleted.
+                        if (!wb.IsDeleted)
+                        {
+                            wb.IsDeleted = true;
+                            anyChanges = true;
+                        }
+                    }
+                }
+
+                if (anyChanges)
+                    await _db.SaveChangesAsync();
+
+                // Only show whiteboards that are not marked deleted
+                var toShow = whiteboards.Where(wb => !wb.IsDeleted).ToList();
+
+                if (!toShow.Any())
+                {
+                    await FollowupAsync("No whiteboards found in this channel.", ephemeral: true);
+                    return;
+                }
+
+                var sb = new System.Text.StringBuilder();
+
+                foreach (var wb in toShow)
                 {
                     var latest = wb.Versions?.OrderByDescending(v => v.VersionIndex).FirstOrDefault();
                     var title = string.IsNullOrWhiteSpace(wb.Title) ? $"WB-{wb.Id}" : wb.Title.Replace("[", "\\[").Replace("]", "\\]");
@@ -371,7 +430,7 @@ namespace Dockhound.Modules
                 var content = sb.ToString();
 
                 // If too long for a message, send as a file
-                if (content.Length > 3800)
+                if (content.Length > 1900)
                 {
                     var bytes = System.Text.Encoding.UTF8.GetBytes(content);
                     await using var ms = new System.IO.MemoryStream(bytes);

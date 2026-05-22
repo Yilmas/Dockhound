@@ -18,6 +18,7 @@ namespace Dockhound.Models
         public ulong CreatedById { get; set; }
         public DateTime CreatedUtc { get; set; }
         public bool IsArchived { get; set; }
+        public bool IsDeleted { get; set; }
         public byte[]? RowVersion { get; set; }
 
         public List<WhiteboardRole> Roles { get; set; } = new();
