@@ -11,7 +11,6 @@ namespace Dockhound.Services
     public interface IGuildSettingsService
     {
         Task<GuildConfig> GetAsync(ulong guildId, CancellationToken ct = default);
-        bool TryGetCached(ulong guildId, out GuildConfig? cfg);
         Task UpdateAsync(ulong guildId, GuildConfig next, string? changedBy = null, CancellationToken ct = default);
         void Invalidate(ulong guildId);
 

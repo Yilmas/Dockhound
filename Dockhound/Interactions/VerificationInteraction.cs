@@ -232,14 +232,10 @@ namespace Dockhound.Interactions
         [ComponentInteraction("verify:metoo")]
         public async Task VerifyMeTooButtonAsync()
         {
-            var steamRequired = false;
-            var restrictionLevel = AccessRestriction.Open;
+            var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
 
-            if (_guildSettingsService.TryGetCached(Context.Guild.Id, out var cfg))
-            {
-                steamRequired = cfg?.Verify?.IsSteamRequired == true;
-                restrictionLevel = cfg?.Verify?.RestrictedAccess?.CurrentRestrictionLevel ?? AccessRestriction.Open;
-            }
+            var steamRequired = cfg?.Verify?.IsSteamRequired == true;
+            var restrictionLevel = cfg?.Verify?.RestrictedAccess?.CurrentRestrictionLevel ?? AccessRestriction.Open;
 
             // Always attempt to log diagnostic info (best-effort) before any early returns
             try
@@ -267,7 +263,7 @@ namespace Dockhound.Interactions
                     allowedRolesDisplay = "(none)";
                 }
 
-                Console.WriteLine($"[VERIFY] User={Context.User.Username}({Context.User.Id}) Roles=[{string.Join(", ", userRoleNames)}] Mode={restrictionLevel} AllowedRoles=[{allowedRolesDisplay}]");
+                Console.WriteLine($"{DateTime.UtcNow:HH:mm:ss} [VERIFY] User={Context.User.Username}({Context.User.Id}) Roles=[{string.Join(", ", userRoleNames)}] Mode={restrictionLevel} AllowedRoles=[{allowedRolesDisplay}]");
             }
             catch
             {
@@ -744,7 +740,7 @@ namespace Dockhound.Interactions
             }
 
             // 2) Update the review message
-            if(approvedByUserId != null)
+            if (approvedByUserId != null)
             {
                 // This is manual approval via the "Approve" button.
                 try
@@ -772,7 +768,7 @@ namespace Dockhound.Interactions
                                       ?? Context.User.Username;
 
                     var eb = reviewMessage.Embeds.FirstOrDefault()?.ToEmbedBuilder() ?? new EmbedBuilder();
-                    
+
                     await reviewMessage.ModifyAsync(m =>
                     {
                         m.Embeds = new[] { eb.Build() };

@@ -146,17 +146,6 @@ namespace Dockhound.Services
             _cache.Set(CacheKey(guildId), cfg, _cacheOptions);
             return cfg;
         }
-        public bool TryGetCached(ulong guildId, out GuildConfig? cfg)
-        {
-            if (_cache.TryGetValue(CacheKey(guildId), out GuildConfig cached))
-            {
-                cfg = cached;
-                return true;
-            }
-
-            cfg = null;
-            return false;
-        }
 
         public async Task UpdateAsync(ulong guildId, GuildConfig next, string? changedBy = null, CancellationToken ct = default)
         {

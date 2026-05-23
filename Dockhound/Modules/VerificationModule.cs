@@ -46,14 +46,10 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
     [SlashCommand("me", "Start the verification process.")]
     public async Task VerifyAsync()
     {
-        var steamRequired = false;
-        var restrictionLevel = AccessRestriction.Open;
+        var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
 
-        if (_guildSettingsService.TryGetCached(Context.Guild.Id, out var cfg))
-        {
-            steamRequired = cfg?.Verify?.IsSteamRequired == true;
-            restrictionLevel = cfg?.Verify?.RestrictedAccess?.CurrentRestrictionLevel ?? AccessRestriction.Open;
-        }
+        var steamRequired = cfg?.Verify?.IsSteamRequired == true;
+        var restrictionLevel = cfg?.Verify?.RestrictedAccess?.CurrentRestrictionLevel ?? AccessRestriction.Open;
 
         // Always attempt to log diagnostic info (best-effort) before any early returns
         try
@@ -81,7 +77,7 @@ public class VerificationModule : InteractionModuleBase<SocketInteractionContext
                 allowedRolesDisplay = "(none)";
             }
 
-            Console.WriteLine($"[VERIFY] User={Context.User.Username}({Context.User.Id}) Roles=[{string.Join(", ", userRoleNames)}] Mode={restrictionLevel} AllowedRoles=[{allowedRolesDisplay}]");
+            Console.WriteLine($"{DateTime.UtcNow:HH:mm:ss} [VERIFY] User={Context.User.Username}({Context.User.Id}) Roles=[{string.Join(", ", userRoleNames)}] Mode={restrictionLevel} AllowedRoles=[{allowedRolesDisplay}]");
         }
         catch
         {
