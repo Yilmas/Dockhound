@@ -12,6 +12,7 @@ namespace Dockhound.Config
         public int SchemaVersion { get; set; } = 1;
         public VerificationSettings Verify { get; set; } = new ();
         public List<RoleSet> Roles { get; set; } = new();
+        public HoneypotSettings Honeypot { get; set; } = new();
 
         public sealed class  VerificationSettings
         {
@@ -35,6 +36,16 @@ namespace Dockhound.Config
             public ulong? MessageId { get; set; }
             public AccessRestriction CurrentRestrictionLevel { get; set; } = AccessRestriction.Open;
         }
+
+        public sealed class HoneypotSettings
+        {
+            public bool Enabled { get; set; } = false;
+            public ulong? ChannelId { get; set; }
+            public ulong? ReactionChannelId { get; set; }
+            public ulong? ReactionMessageId { get; set; }
+            public ulong? ReportChannelId { get; set; }
+        }
+
         public sealed class RoleSet
         {
             public string Name { get; set; } = string.Empty;

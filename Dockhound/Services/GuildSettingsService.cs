@@ -22,7 +22,7 @@ namespace Dockhound.Services
 
         private static string CacheKey(ulong gid) => $"guildcfg:{gid}";
 
-        public const int SchemaVersionConst = 2;
+        public const int SchemaVersionConst = 6;
 
         public int CurrentSchemaVersion => SchemaVersionConst;
 
@@ -49,7 +49,7 @@ namespace Dockhound.Services
         private static void EnsureDefaults(GuildConfig cfg)
         {
             cfg.SchemaVersion = Math.Max(1, cfg.SchemaVersion);
-            cfg.Roles ??= new List<GuildConfig.RoleSet>(); // Version 2
+            cfg.Roles ??= new List<GuildConfig.RoleSet>();
             cfg.Verify ??= new GuildConfig.VerificationSettings();
             cfg.Verify.RestrictedAccess ??= new GuildConfig.RestrictedAccessSettings();
             cfg.Verify.RecruitAssignerRoles ??= new List<ulong>();
@@ -57,6 +57,7 @@ namespace Dockhound.Services
             cfg.Verify.TrustedRoles ??= new List<ulong>();
             cfg.Verify.RestrictedAccess.AlwaysRestrictRoles ??= new List<ulong>();
             cfg.Verify.RestrictedAccess.MemberOnlyRoles ??= new List<ulong>();
+            cfg.Honeypot ??= new GuildConfig.HoneypotSettings();
         }
 
         private static void MigrateToCurrent(GuildConfig cfg)
@@ -67,7 +68,12 @@ namespace Dockhound.Services
                 cfg.Roles ??= new List<GuildConfig.RoleSet>();
                 cfg.SchemaVersion = 5;
             }
-            // future migrations: if (cfg.SchemaVersion < 6) { ...; cfg.SchemaVersion = 6; }
+            if (cfg.SchemaVersion < 6)
+            {
+                cfg.Honeypot ??= new GuildConfig.HoneypotSettings();
+                cfg.SchemaVersion = 6;
+            }
+            // future migrations: if (cfg.SchemaVersion < 7) { ...; cfg.SchemaVersion = 7; }
         }
 
         public async Task<GuildConfig.RestrictedAccessSettings> GetRestrictedAccessAsync(ulong guildId, CancellationToken ct = default)
