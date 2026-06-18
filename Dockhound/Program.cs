@@ -65,6 +65,7 @@ public class Program
             .AddSingleton<ISteamService, SteamService>()
             .AddSingleton<IGuildSettingsService, GuildSettingsService>()
             .AddSingleton<IVerificationHistoryService, VerificationHistoryService>()
+            .AddSingleton<IHoneypotService, HoneypotService>()
             .AddSingleton<DiscordSocketClient>()
             .AddSingleton(x => new InteractionService(x.GetRequiredService<DiscordSocketClient>(), _interactionServiceConfig))
             .AddSingleton<InteractionHandler>();

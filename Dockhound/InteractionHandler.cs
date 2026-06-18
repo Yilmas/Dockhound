@@ -35,8 +35,9 @@ public class InteractionHandler
     private readonly DockhoundContext _dbContext;
     private readonly AppSettings _settings;
     private readonly IGuildSettingsService _guildSettingsService;
+    private readonly IHoneypotService _honeypotService;
 
-    public InteractionHandler(DiscordSocketClient client, InteractionService handler, IServiceProvider services, IConfiguration config, DockhoundContext dbContext, IOptions<AppSettings> appSettings, IGuildSettingsService guildSettingsService)
+    public InteractionHandler(DiscordSocketClient client, InteractionService handler, IServiceProvider services, IConfiguration config, DockhoundContext dbContext, IOptions<AppSettings> appSettings, IGuildSettingsService guildSettingsService, IHoneypotService honeypotService)
     {
         _client = client;
         _handler = handler;
@@ -44,6 +45,7 @@ public class InteractionHandler
         _configuration = config;
         _dbContext = dbContext;
         _guildSettingsService = guildSettingsService;
+        _honeypotService = honeypotService;
         _settings = appSettings.Value;
     }
 
@@ -56,6 +58,7 @@ public class InteractionHandler
 
         _client.InteractionCreated += HandleInteraction;
         _handler.InteractionExecuted += HandleInteractionExecute;
+        _client.MessageReceived += OnMessageReceivedAsync;
         _client.ReactionAdded += OnReactionAddedAsync;
     }
 
@@ -189,9 +192,14 @@ public class InteractionHandler
     private static string Trunc(string s, int max)
     => string.IsNullOrEmpty(s) || s.Length <= max ? s : s.Substring(0, max - 1) + "…";
 
+    private Task OnMessageReceivedAsync(SocketMessage message)
+        => _honeypotService.HandleMessageAsync(message);
+
     private async Task OnReactionAddedAsync(Cacheable<IUserMessage, ulong> cacheable, Cacheable<IMessageChannel, ulong> cachechannel, SocketReaction reaction)
     {
         if (reaction.UserId == _client.CurrentUser.Id) return;
+
+        await _honeypotService.HandleReactionAsync(cacheable, cachechannel, reaction);
 
         if (reaction.Emote.Name == "🔖" || (reaction.Emote is Emote e && e.Name == "🔖"))
         {

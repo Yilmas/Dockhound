@@ -64,5 +64,6 @@ namespace Dockhound.Interactions
             }
             catch { /* ignore */ }
         }
+
     }
 }
