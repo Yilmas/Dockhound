@@ -94,6 +94,9 @@ namespace Dockhound.Services
             return message;
         }
 
+        public Task RecordSavingGraceAsync(SocketGuild guild)
+            => IncrementTrapMessageCounterAsync(guild, "Saving Graces");
+
         private async Task BanAndReportAsync(
             SocketGuild guild,
             ulong userId,
@@ -109,11 +112,17 @@ namespace Dockhound.Services
             if (user is null || user.IsBot)
                 return;
 
+            if (IsProtectedMember(user))
+            {
+                await ReportProtectedUserAsync(guild, settings, user, reason, sourceChannelId, sourceMessageId);
+                return;
+            }
+
             var auditReason = $"{reason}: {user.Username} ({user.Id})";
 
             try
             {
-                await guild.AddBanAsync(userId, 0, auditReason);
+                await guild.AddBanAsync(userId, Math.Clamp(settings.MessagePruneDays, 0, 7), auditReason);
             }
             catch (Exception ex)
             {
@@ -122,6 +131,7 @@ namespace Dockhound.Services
             }
 
             await ReportBanAsync(guild, settings, user, reason, proof, sourceChannelId, sourceMessageId, extraFields);
+            await IncrementTrapMessageCounterAsync(guild, "Bots Squashed");
 
             try
             {
@@ -171,6 +181,22 @@ namespace Dockhound.Services
             await reportChannel.SendMessageAsync(embed: HoneypotComponents.BuildBanFailureEmbed(user, reason, jumpLink, ex));
         }
 
+        private async Task ReportProtectedUserAsync(SocketGuild guild, GuildConfig.HoneypotSettings settings, IGuildUser user, string reason, ulong sourceChannelId, ulong sourceMessageId)
+        {
+            var reportChannel = ResolveReportChannel(guild, settings);
+            if (reportChannel is null)
+                return;
+
+            var jumpLink = $"https://discord.com/channels/{guild.Id}/{sourceChannelId}/{sourceMessageId}";
+            var embed = HoneypotComponents.BuildProtectedUserEmbed(
+                user,
+                reason,
+                jumpLink,
+                GetProtectedPermissionSummary(user));
+
+            await reportChannel.SendMessageAsync(embed: embed);
+        }
+
         private static IEnumerable<EmbedFieldBuilder> BuildMessageFields(SocketMessage message)
         {
             if (message.Attachments.Count > 0)
@@ -184,22 +210,7 @@ namespace Dockhound.Services
 
         private static IEnumerable<EmbedFieldBuilder> BuildReactionFields(SocketReaction reaction, IUserMessage message)
         {
-            yield return new EmbedFieldBuilder()
-                .WithName("Reaction")
-                .WithValue(reaction.Emote.Name)
-                .WithIsInline(true);
-
-            var baitText = !string.IsNullOrWhiteSpace(message.Content)
-                ? Trunc(message.Content.Trim(), 350)
-                : message.Embeds.FirstOrDefault()?.Description;
-
-            if (!string.IsNullOrWhiteSpace(baitText))
-            {
-                yield return new EmbedFieldBuilder()
-                    .WithName("Bait Message")
-                    .WithValue(Trunc(baitText, 350))
-                    .WithIsInline(false);
-            }
+            return Enumerable.Empty<EmbedFieldBuilder>();
         }
 
         private static IMessageChannel? ResolveReportChannel(SocketGuild guild, GuildConfig.HoneypotSettings settings)
@@ -208,6 +219,112 @@ namespace Dockhound.Services
                 return configured;
 
             return guild.SystemChannel ?? guild.SafetyAlertsChannel as IMessageChannel;
+        }
+
+        private static bool IsProtectedMember(IGuildUser user)
+        {
+            var permissions = user.GuildPermissions;
+
+            return permissions.Administrator
+                || permissions.ManageGuild
+                || permissions.BanMembers
+                || permissions.KickMembers
+                || permissions.ManageRoles
+                || permissions.ManageChannels
+                || permissions.ManageMessages
+                || permissions.ModerateMembers
+                || permissions.ManageNicknames
+                || permissions.ManageWebhooks;
+        }
+
+        private static string GetProtectedPermissionSummary(IGuildUser user)
+        {
+            var permissions = user.GuildPermissions;
+            var names = new List<string>();
+
+            if (permissions.Administrator) names.Add("Administrator");
+            if (permissions.ManageGuild) names.Add("Manage Server");
+            if (permissions.BanMembers) names.Add("Ban Members");
+            if (permissions.KickMembers) names.Add("Kick Members");
+            if (permissions.ManageRoles) names.Add("Manage Roles");
+            if (permissions.ManageChannels) names.Add("Manage Channels");
+            if (permissions.ManageMessages) names.Add("Manage Messages");
+            if (permissions.ModerateMembers) names.Add("Moderate Members");
+            if (permissions.ManageNicknames) names.Add("Manage Nicknames");
+            if (permissions.ManageWebhooks) names.Add("Manage Webhooks");
+
+            return names.Count == 0 ? "Unknown privileged permission" : string.Join(", ", names);
+        }
+
+        private async Task IncrementTrapMessageCounterAsync(SocketGuild guild, string fieldName)
+        {
+            var cfg = await _guildSettingsService.GetAsync(guild.Id);
+            var hp = cfg.Honeypot;
+
+            if (hp.ReactionChannelId is not ulong channelId || hp.ReactionMessageId is not ulong messageId)
+                return;
+
+            var channel = guild.GetTextChannel(channelId);
+            if (channel is null)
+                return;
+
+            try
+            {
+                if (await channel.GetMessageAsync(messageId) is not IUserMessage message)
+                    return;
+
+                var embed = message.Embeds.FirstOrDefault()?.ToEmbedBuilder()
+                    ?? HoneypotComponents.BuildTrapEmbed(null).ToEmbedBuilder();
+
+                IncrementField(embed, fieldName);
+                EnsureCounterField(embed, fieldName == "Bots Squashed" ? "Saving Graces" : "Bots Squashed");
+
+                await message.ModifyAsync(m => m.Embeds = new[] { embed.Build() });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WARN] Failed to update honeypot counter message: {ex.Message}");
+            }
+        }
+
+        private static void IncrementField(EmbedBuilder embed, string fieldName)
+        {
+            var index = FindFieldIndex(embed, fieldName);
+            var value = index >= 0 && int.TryParse(embed.Fields[index].Value?.ToString(), out var current)
+                ? current + 1
+                : 1;
+
+            SetCounterField(embed, fieldName, value, index);
+        }
+
+        private static void EnsureCounterField(EmbedBuilder embed, string fieldName)
+        {
+            if (FindFieldIndex(embed, fieldName) < 0)
+                SetCounterField(embed, fieldName, 0, -1);
+        }
+
+        private static int FindFieldIndex(EmbedBuilder embed, string fieldName)
+        {
+            for (var i = 0; i < embed.Fields.Count; i++)
+            {
+                if (string.Equals(embed.Fields[i].Name, fieldName, StringComparison.OrdinalIgnoreCase))
+                    return i;
+            }
+
+            return -1;
+        }
+
+        private static void SetCounterField(EmbedBuilder embed, string fieldName, int value, int index)
+        {
+            var field = new EmbedFieldBuilder()
+                .WithName(fieldName)
+                .WithValue(value.ToString())
+                .WithIsInline(true);
+
+            if (index >= 0)
+                embed.Fields[index] = field;
+            else
+                embed.Fields.Add(field);
         }
 
         private static string Trunc(string? value, int max)

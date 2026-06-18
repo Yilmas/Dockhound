@@ -44,6 +44,7 @@ namespace Dockhound.Config
             public ulong? ReactionChannelId { get; set; }
             public ulong? ReactionMessageId { get; set; }
             public ulong? ReportChannelId { get; set; }
+            public int MessagePruneDays { get; set; } = 0;
         }
 
         public sealed class RoleSet

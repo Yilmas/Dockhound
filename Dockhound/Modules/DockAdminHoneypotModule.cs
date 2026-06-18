@@ -35,6 +35,7 @@ namespace Dockhound.Modules
                         .AddField("Reaction Trap", hp.ReactionChannelId.HasValue && hp.ReactionMessageId.HasValue
                             ? $"<#{hp.ReactionChannelId.Value}> / `{hp.ReactionMessageId.Value}`"
                             : "-", inline: false)
+                        .AddField("Message Prune Days", hp.MessagePruneDays.ToString(), inline: true)
                         .AddField("Report Channel", hp.ReportChannelId.HasValue ? $"<#{hp.ReportChannelId.Value}>" : "Server system channel fallback", inline: false)
                         .WithCurrentTimestamp()
                         .Build();
@@ -86,6 +87,27 @@ namespace Dockhound.Modules
                         $"{Context.User.Username}#{Context.User.Id}");
 
                     await FollowupAsync($"Honeypot reports will be sent to {channel.Mention}.", ephemeral: true);
+                }
+
+                [RequireUserPermission(GuildPermission.Administrator)]
+                [SlashCommand("set-prune-days", "Set how many days of messages to prune when the honeypot bans a user.")]
+                public async Task SetPruneDaysAsync(
+                    [Summary("days", "Number of days to prune, from 0 to 7.")] int days)
+                {
+                    await DeferAsync(ephemeral: true);
+
+                    if (days < 0 || days > 7)
+                    {
+                        await FollowupAsync("Prune days must be between `0` and `7`.", ephemeral: true);
+                        return;
+                    }
+
+                    await _guildSettingsService.PatchAsync(
+                        Context.Guild.Id,
+                        cfg => cfg.Honeypot.MessagePruneDays = days,
+                        $"{Context.User.Username}#{Context.User.Id}");
+
+                    await FollowupAsync($"Honeypot bans will prune `{days}` day(s) of messages.", ephemeral: true);
                 }
 
                 [RequireUserPermission(GuildPermission.Administrator)]

@@ -4,18 +4,18 @@ namespace Dockhound.Components
 {
     public static class HoneypotComponents
     {
-        public static Embed BuildTrapEmbed(string? content)
+        public static Embed BuildTrapEmbed(string? content, int botsSquashed = 0, int savingGraces = 0)
         {
             var messageText = string.IsNullOrWhiteSpace(content)
-                ? "Verification required. React here to continue."
+                ? "Do not react or send messages in this channel or you will be banned! You have been warned!"
                 : content.Trim();
 
             return new EmbedBuilder()
-                .WithTitle("Verification Required")
+                .WithTitle("Bringing you the tears of bots 24/7!")
                 .WithDescription(messageText)
                 .WithColor(Color.DarkGrey)
-                .WithFooter("Dockhound honeypot")
-                .WithCurrentTimestamp()
+                .AddField("Bots Squashed", botsSquashed.ToString(), inline: true)
+                .AddField("Saving Graces", savingGraces.ToString(), inline: true)
                 .Build();
         }
 
@@ -31,11 +31,9 @@ namespace Dockhound.Components
                 .WithDescription($"{user.Mention} was automatically banned by the honeypot.")
                 .WithColor(Color.Red)
                 .WithThumbnailUrl(user.GetAvatarUrl() ?? user.GetDefaultAvatarUrl())
-                .AddField("User", $"{user.Username}#{user.Discriminator} ({user.Id})", inline: false)
+                .AddField("User", $"{user.Username} ({user.Id})", inline: false)
                 .AddField("Account Created", $"<t:{user.CreatedAt.ToUnixTimeSeconds()}:F> (<t:{user.CreatedAt.ToUnixTimeSeconds()}:R>)", inline: false)
-                .AddField("Reason", reason, inline: false)
                 .AddField("Proof", string.IsNullOrWhiteSpace(proof) ? "(no text content)" : Trunc(proof.Trim(), 900), inline: false)
-                .AddField("Source", $"[Jump to offense]({jumpLink})", inline: false)
                 .WithFooter("Review this carefully. Use the button to unban if this was a false positive.")
                 .WithCurrentTimestamp();
 
@@ -55,10 +53,24 @@ namespace Dockhound.Components
                 .WithTitle("Honeypot Ban Failed")
                 .WithDescription($"Dockhound detected {user.Mention}, but could not ban them.")
                 .WithColor(Color.Orange)
-                .AddField("User", $"{user.Username}#{user.Discriminator} ({user.Id})", inline: false)
-                .AddField("Reason", reason, inline: false)
-                .AddField("Source", $"[Jump to offense]({jumpLink})", inline: false)
+                .AddField("User", $"{user.Username} ({user.Id})", inline: false)
                 .AddField("Error", Trunc(exception.Message, 900), inline: false)
+                .WithCurrentTimestamp()
+                .Build();
+        }
+
+        public static Embed BuildProtectedUserEmbed(
+            IGuildUser user,
+            string reason,
+            string jumpLink,
+            string protectedPermissions)
+        {
+            return new EmbedBuilder()
+                .WithTitle("Honeypot Ban Skipped")
+                .WithDescription($"{user.Mention} triggered the honeypot, but was not banned because they have protected permissions.")
+                .WithColor(Color.Gold)
+                .AddField("User", $"{user.Username} ({user.Id})", inline: false)
+                .AddField("Protected Permissions", protectedPermissions, inline: false)
                 .WithCurrentTimestamp()
                 .Build();
         }

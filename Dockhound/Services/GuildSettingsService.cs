@@ -22,7 +22,7 @@ namespace Dockhound.Services
 
         private static string CacheKey(ulong gid) => $"guildcfg:{gid}";
 
-        public const int SchemaVersionConst = 6;
+        public const int SchemaVersionConst = 7;
 
         public int CurrentSchemaVersion => SchemaVersionConst;
 
@@ -58,6 +58,7 @@ namespace Dockhound.Services
             cfg.Verify.RestrictedAccess.AlwaysRestrictRoles ??= new List<ulong>();
             cfg.Verify.RestrictedAccess.MemberOnlyRoles ??= new List<ulong>();
             cfg.Honeypot ??= new GuildConfig.HoneypotSettings();
+            cfg.Honeypot.MessagePruneDays = Math.Clamp(cfg.Honeypot.MessagePruneDays, 0, 7);
         }
 
         private static void MigrateToCurrent(GuildConfig cfg)
@@ -73,7 +74,13 @@ namespace Dockhound.Services
                 cfg.Honeypot ??= new GuildConfig.HoneypotSettings();
                 cfg.SchemaVersion = 6;
             }
-            // future migrations: if (cfg.SchemaVersion < 7) { ...; cfg.SchemaVersion = 7; }
+            if (cfg.SchemaVersion < 7)
+            {
+                cfg.Honeypot ??= new GuildConfig.HoneypotSettings();
+                cfg.Honeypot.MessagePruneDays = Math.Clamp(cfg.Honeypot.MessagePruneDays, 0, 7);
+                cfg.SchemaVersion = 7;
+            }
+            // future migrations: if (cfg.SchemaVersion < 8) { ...; cfg.SchemaVersion = 8; }
         }
 
         public async Task<GuildConfig.RestrictedAccessSettings> GetRestrictedAccessAsync(ulong guildId, CancellationToken ct = default)

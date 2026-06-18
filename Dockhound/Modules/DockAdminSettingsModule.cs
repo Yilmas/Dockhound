@@ -121,6 +121,7 @@ namespace Dockhound.Modules
                     cfg.Verify.RestrictedAccess.AlwaysRestrictRoles ??= new List<ulong>();
                     cfg.Verify.RestrictedAccess.MemberOnlyRoles ??= new List<ulong>();
                     cfg.Honeypot ??= new GuildConfig.HoneypotSettings();
+                    cfg.Honeypot.MessagePruneDays = Math.Clamp(cfg.Honeypot.MessagePruneDays, 0, 7);
 
                     try
                     {
