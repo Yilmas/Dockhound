@@ -155,11 +155,11 @@ public class Program
         if (!telemetryClient.IsEnabled())
         {
             // Skip telemetry if disabled
-            Console.WriteLine($"{log.ToString()}");
+            WriteLogToConsole(log);
             return Task.CompletedTask; 
         }
 
-        if (log.Exception is not null)
+        if (log.Exception is not null && !IsExpectedGatewayReconnect(log))
         {
             telemetryClient.TrackException(log.Exception);
         }
@@ -177,7 +177,40 @@ public class Program
 
         telemetryClient.TrackTrace($"[{log.Severity}] {log.Source}: {log.Message}");
 
-        Console.WriteLine($"{log.ToString()}");
+        WriteLogToConsole(log);
         return Task.CompletedTask;
+    }
+
+    private static void WriteLogToConsole(LogMessage log)
+    {
+        if (IsExpectedGatewayReconnect(log))
+        {
+            Console.WriteLine($"{DateTime.UtcNow:HH:mm:ss} [GATEWAY] Discord connection interrupted; reconnecting...");
+            return;
+        }
+
+        Console.WriteLine(log.Exception is null
+            ? log.ToString()
+            : $"{DateTime.UtcNow:HH:mm:ss} [{log.Severity.ToString().ToUpperInvariant()}] {log.Source}: {log.Message}{Environment.NewLine}{log.Exception}");
+    }
+
+    private static bool IsExpectedGatewayReconnect(LogMessage log)
+    {
+        if (!string.Equals(log.Source, "Gateway", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var exception = log.Exception;
+        if (exception is null)
+        {
+            return string.Equals(log.Message, "Server requested a reconnect", StringComparison.OrdinalIgnoreCase)
+                   || log.Message.Contains("WebSocket connection was closed", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return exception.GetType().Name == "GatewayReconnectException"
+               || exception.Message.Contains("Server requested a reconnect", StringComparison.OrdinalIgnoreCase)
+               || exception.Message.Contains("WebSocket connection was closed", StringComparison.OrdinalIgnoreCase)
+               || exception.InnerException?.Message.Contains("remote party closed the WebSocket connection", StringComparison.OrdinalIgnoreCase) == true;
     }
 }
