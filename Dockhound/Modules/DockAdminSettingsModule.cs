@@ -262,7 +262,7 @@ namespace Dockhound.Modules
 
                     var query = _dbContext.LogEvents
                         .AsNoTracking()
-                        .Where(l => l.GuildId == guildId && l.Updated >= cutoff);
+                        .Where(l => (l.GuildId == guildId || l.GuildId == null) && l.Updated >= cutoff);
 
                     if (user is not null)
                         query = query.Where(l => l.UserId == user.Id);
@@ -271,7 +271,10 @@ namespace Dockhound.Modules
                         query = query.Where(l => l.MessageId == msgFilter);
 
                     if (eventType is LogEventType typeFilter)
-                        query = query.Where(l => l.EventType == typeFilter);
+                    {
+                        var eventNameMatches = typeFilter.GetStoredEventNameMatches();
+                        query = query.Where(l => eventNameMatches.Contains(l.EventName));
+                    }
 
                     var logs = await query
                         .OrderByDescending(l => l.Updated)

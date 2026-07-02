@@ -49,7 +49,7 @@ namespace Dockhound.Logs
 
         public static async Task<List<LogEvent>> LookupLogEventsAsync(DockhoundContext dbContext, string query = null, DateTime? startDate = null, DateTime? endDate = null)
         {
-            var parsedEventType = LogEventTypeExtensions.FromLegacyName(query);
+            var parsedEventType = LogEventTypeExtensions.FromStoredEventName(query);
             var logs = await dbContext.Set<LogEvent>()
                 .Where(logEvent =>
                     (!startDate.HasValue || logEvent.Updated >= startDate.Value) &&
@@ -106,7 +106,7 @@ namespace Dockhound.Logs
                 {
                     var newEvents = oldEvents.Select(oldEvent => new LogEvent
                     {
-                        EventType = LogEventTypeExtensions.FromLegacyName(oldEvent.Id.Split("|")[1]),
+                        EventName = LogEventTypeExtensions.FromStoredEventName(oldEvent.Id.Split("|")[1]).ToStoredValue(),
                         MessageId = ulong.Parse(oldEvent.Id.Split("|")[0]),
                         Username = oldEvent.Author.Split("|")[0],
                         UserId = ulong.Parse(oldEvent.Author.Split("|")[1]),

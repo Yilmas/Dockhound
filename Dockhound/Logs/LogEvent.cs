@@ -1,5 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Dockhound.Enums;
 
@@ -7,14 +9,15 @@ namespace Dockhound.Logs
 {
     [Index(nameof(GuildId), nameof(Updated))]
     [Index(nameof(GuildId), nameof(UserId), nameof(Updated))]
-    [Index(nameof(GuildId), nameof(EventType), nameof(Updated))]
+    [Index(nameof(GuildId), nameof(EventName), nameof(Updated))]
     [Index(nameof(GuildId), nameof(MessageId), nameof(Updated))]
     public class LogEvent
     {
         [Key]
         public int Id { get; set; }
         public ulong? GuildId { get; set; }
-        [Required] public LogEventType EventType { get; set; }
+        [Required] public string EventName { get; set; } = string.Empty;
+        [NotMapped] public LogEventType EventType => LogEventTypeExtensions.FromStoredEventName(EventName);
         public ulong MessageId { get; set; }
         [Required] public string Username { get; set; } = string.Empty;
         [Required] public ulong UserId { get; set; }
@@ -26,7 +29,7 @@ namespace Dockhound.Logs
 
         public LogEvent(LogEventType eventType, ulong? guildId, ulong messageId, string username, ulong userId, DateTime? updated = null, string? changes = null)
         {
-            EventType = eventType;
+            EventName = eventType.ToStoredValue();
             GuildId = guildId;
             MessageId = messageId;
             Username = username;
@@ -76,6 +79,9 @@ namespace Dockhound.Logs
 
     public static class LogEventTypeExtensions
     {
+        public static string ToStoredValue(this LogEventType eventType)
+            => ((int)eventType).ToString(CultureInfo.InvariantCulture);
+
         public static string ToDisplayName(this LogEventType eventType)
             => eventType switch
             {
@@ -96,9 +102,30 @@ namespace Dockhound.Logs
                 _ => "Unknown"
             };
 
-        public static LogEventType FromLegacyName(string? eventName)
+        public static string[] GetStoredEventNameMatches(this LogEventType eventType)
+        {
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                eventType.ToStoredValue(),
+                eventType.ToString(),
+                eventType.ToDisplayName()
+            };
+
+            foreach (var legacyName in eventType.GetLegacyNames())
+                names.Add(legacyName);
+
+            return names.ToArray();
+        }
+
+        public static LogEventType FromStoredEventName(string? eventName)
         {
             var normalized = eventName?.Trim();
+
+            if (int.TryParse(normalized, NumberStyles.Integer, CultureInfo.InvariantCulture, out var storedValue) &&
+                Enum.IsDefined(typeof(LogEventType), storedValue))
+            {
+                return (LogEventType)storedValue;
+            }
 
             return normalized switch
             {
@@ -121,5 +148,13 @@ namespace Dockhound.Logs
                     : LogEventType.Unknown
             };
         }
+
+        private static IEnumerable<string> GetLegacyNames(this LogEventType eventType)
+            => eventType switch
+            {
+                LogEventType.VerificationSubmitted => new[] { "Verification Module" },
+                LogEventType.VerificationApproved => new[] { "Verification Handler" },
+                _ => Array.Empty<string>()
+            };
     }
 }
