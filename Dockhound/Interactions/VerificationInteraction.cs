@@ -213,7 +213,8 @@ namespace Dockhound.Interactions
             try
             {
                 var log = new LogEvent(
-                    eventName: "Verification Denial",
+                    eventType: LogEventType.VerificationDenied,
+                    guildId: Context.Guild.Id,
                     messageId: messageId,
                     username: Context.User.Username,
                     userId: Context.User.Id,
@@ -633,7 +634,8 @@ namespace Dockhound.Interactions
                     var msg = await GetOriginalResponseAsync();
 
                     var log = new LogEvent(
-                        eventName: "Verification Module",
+                        eventType: LogEventType.VerificationSubmitted,
+                        guildId: Context.Guild.Id,
                         messageId: msg.Id,
                         username: Context.User.Username,
                         userId: Context.User.Id,
@@ -682,7 +684,8 @@ namespace Dockhound.Interactions
                     var msg = await GetOriginalResponseAsync();
 
                     var log = new LogEvent(
-                        eventName: "Verification Module",
+                        eventType: LogEventType.VerificationSubmitted,
+                        guildId: Context.Guild.Id,
                         messageId: msg.Id,
                         username: Context.User.Username,
                         userId: Context.User.Id,
@@ -829,7 +832,8 @@ namespace Dockhound.Interactions
             try
             {
                 var log = new LogEvent(
-                    eventName: "Verification Handler",
+                    eventType: LogEventType.VerificationApproved,
+                    guildId: Context.Guild.Id,
                     messageId: reviewMessage.Id,
                     username: approvedByName,
                     userId: approvedByUserId ?? user.Id,

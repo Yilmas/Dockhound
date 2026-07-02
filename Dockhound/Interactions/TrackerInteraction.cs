@@ -104,7 +104,8 @@ namespace Dockhound.Interactions
                 var location = eb.Title;
 
                 var log = new LogEvent(
-                    eventName: "Updated Yard Tracker",
+                    eventType: LogEventType.YardTrackerUpdated,
+                    guildId: Context.Guild.Id,
                     messageId: socketModal.Message.Id,
                     username: socketModal.User.Username,
                     userId: socketModal.User.Id,
@@ -198,7 +199,8 @@ namespace Dockhound.Interactions
             {
                 var location = eb.Title;
                 var log = new LogEvent(
-                    eventName: "Updated Whiteboard",
+                    eventType: LogEventType.WhiteboardUpdated,
+                    guildId: Context.Guild.Id,
                     messageId: msg.Id,
                     username: Context.User.Username,
                     userId: Context.User.Id,

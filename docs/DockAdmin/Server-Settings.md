@@ -86,20 +86,23 @@ Upload a GuildConfig JSON file to update the guild's configuration.
 
 - Returns error messages for download failures, JSON deserialization errors, and persistence exceptions (including concurrency conflicts).
 
-## Logs by Message
+## Logs
 
 **Description**
 
-Show all log events for a given message id over a specified timespan in days. Groups results by ISO week and displays counts per week.
+Export Dockhound log events over a specified timespan. The command can optionally filter by user, message id, and event type, then returns a downloadable text file.
 
 **Usage**
 
-- `/dockadmin settings logs-per-message <message_id> <days_span>`
+- `/dockadmin settings logs <days> [user] [message_id] [event_type] [limit]`
 
 **Parameters**
 
-- `message_id`: Discord message ID to look up.
-- `days_span`: Days into the past to include (positive number). The command internally negates it to compute the cutoff.
+- `days`: Days into the past to include. Values are clamped to 1-365.
+- `user`: Discord user to filter by (optional).
+- `message_id`: Discord message ID to filter by (optional).
+- `event_type`: Dockhound event type to filter by (optional).
+- `limit`: Maximum rows to export. Values are clamped to 1-5000 and default to 1000.
 
 **Permissions**
 
@@ -107,11 +110,15 @@ Show all log events for a given message id over a specified timespan in days. Gr
 
 **Behavior**
 
-- Validates the message id format and computes a cutoff date.
-- Queries the LogEvents table for matches on MessageId and Updated >= cutoff.
-- Groups events by ISO year+week and renders weekly lines, including weeks with zero updates.
-- Returns an embed showing total events, weeks covered, and a code block with weekly updates.
+- Validates the message id format when `message_id` is supplied.
+- Computes a UTC cutoff from `days`.
+- Queries the LogEvents table for the current guild and also includes older legacy rows that do not have a stored guild id.
+- Applies any supplied filters for user, message id, and event type.
+- Sorts newest first and exports up to `limit + 1` rows to detect truncation.
+- Returns an ephemeral downloadable `.txt` file with the filters, result count, truncation status, and matching log entries.
 
 **Notes**
 
-- Uses ISO week handling to present consistent weekly buckets starting on Monday.
+- This replaces the old `/dockadmin settings logs-per-message` command.
+- The export reports Dockhound application logs, not Discord audit logs.
+- Older log rows may have no stored guild id. These rows are still included so historical data remains visible after the command migration.

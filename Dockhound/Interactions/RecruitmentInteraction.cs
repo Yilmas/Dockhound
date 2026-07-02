@@ -134,7 +134,8 @@ namespace Dockhound.Interactions
                 try
                 {
                     var log = new LogEvent(
-                        eventName: "Recruit Role Auto-Assigned",
+                        eventType: LogEventType.RecruitRoleAutoAssigned,
+                        guildId: Context.Guild.Id,
                         messageId: msg.Id,
                         username: Context.User.Username,
                         userId: Context.User.Id,
@@ -181,7 +182,8 @@ namespace Dockhound.Interactions
             try
             {
                 var log = new LogEvent(
-                    eventName: "Recruit Request",
+                    eventType: LogEventType.RecruitRequest,
+                    guildId: Context.Guild.Id,
                     messageId: reviewMsg.Id,
                     username: Context.User.Username,
                     userId: Context.User.Id,
@@ -277,7 +279,8 @@ namespace Dockhound.Interactions
             try
             {
                 var log = new LogEvent(
-                    eventName: "Recruit Approved",
+                    eventType: LogEventType.RecruitApproved,
+                    guildId: Context.Guild.Id,
                     messageId: comp.Message.Id,
                     username: Context.User.Username,
                     userId: Context.User.Id,
@@ -376,7 +379,8 @@ namespace Dockhound.Interactions
             try
             {
                 var log = new LogEvent(
-                    eventName: "Recruit Denied",
+                    eventType: LogEventType.RecruitDenied,
+                    guildId: Context.Guild.Id,
                     messageId: reviewMessage.Id,
                     username: Context.User.Username,
                     userId: Context.User.Id,

@@ -27,7 +27,8 @@ namespace Dockhound.Logs
                         var logEvent = JsonConvert.DeserializeObject<LogEvent>(line);
                         if (logEvent != null &&
                             (string.IsNullOrWhiteSpace(query) || query.Equals("all", StringComparison.OrdinalIgnoreCase) ||
-                             logEvent.EventName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                             logEvent.EventType.ToString().Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                             logEvent.EventType.ToDisplayName().Contains(query, StringComparison.OrdinalIgnoreCase) ||
                              logEvent.Username.Contains(query, StringComparison.OrdinalIgnoreCase) ||
                              logEvent.MessageId.ToString().Contains(query, StringComparison.OrdinalIgnoreCase) ||
                              logEvent.UserId.ToString().Contains(query, StringComparison.OrdinalIgnoreCase) ||
@@ -48,19 +49,27 @@ namespace Dockhound.Logs
 
         public static async Task<List<LogEvent>> LookupLogEventsAsync(DockhoundContext dbContext, string query = null, DateTime? startDate = null, DateTime? endDate = null)
         {
-            return await dbContext.Set<LogEvent>()
-                .AsQueryable()
+            var parsedEventType = LogEventTypeExtensions.FromStoredEventName(query);
+            var logs = await dbContext.Set<LogEvent>()
                 .Where(logEvent =>
-                    (string.IsNullOrWhiteSpace(query) || query.Equals("all", StringComparison.OrdinalIgnoreCase) ||
-                     logEvent.EventName.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                     logEvent.Username.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                     logEvent.MessageId.ToString().Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                     logEvent.UserId.ToString().Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                     (logEvent.Changes != null && logEvent.Changes.Contains(query, StringComparison.OrdinalIgnoreCase))) &&
                     (!startDate.HasValue || logEvent.Updated >= startDate.Value) &&
                     (!endDate.HasValue || logEvent.Updated <= endDate.Value))
                 .AsNoTracking()
                 .ToListAsync();
+
+            if (string.IsNullOrWhiteSpace(query) || query.Equals("all", StringComparison.OrdinalIgnoreCase))
+                return logs;
+
+            return logs
+                .Where(logEvent =>
+                    (parsedEventType != LogEventType.Unknown && logEvent.EventType == parsedEventType) ||
+                    logEvent.EventType.ToString().Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                    logEvent.EventType.ToDisplayName().Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                    logEvent.Username.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                    logEvent.MessageId.ToString().Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                    logEvent.UserId.ToString().Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                    (logEvent.Changes != null && logEvent.Changes.Contains(query, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
         }
 
         public static List<LogEvent> ApplyDateRangeFilter(List<LogEvent> events, DateTime? startDate, DateTime? endDate)
@@ -97,7 +106,7 @@ namespace Dockhound.Logs
                 {
                     var newEvents = oldEvents.Select(oldEvent => new LogEvent
                     {
-                        EventName = oldEvent.Id.Split("|")[1],
+                        EventName = LogEventTypeExtensions.FromStoredEventName(oldEvent.Id.Split("|")[1]).ToStoredValue(),
                         MessageId = ulong.Parse(oldEvent.Id.Split("|")[0]),
                         Username = oldEvent.Author.Split("|")[0],
                         UserId = ulong.Parse(oldEvent.Author.Split("|")[1]),

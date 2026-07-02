@@ -121,7 +121,8 @@ namespace Dockhound.Interactions
             try
             {
                 var log = new LogEvent(
-                    eventName: "Ally Request",
+                    eventType: LogEventType.AllyRequest,
+                    guildId: Context.Guild.Id,
                     messageId: msg.Id,
                     username: Context.User.Username,
                     userId: Context.User.Id,
@@ -212,7 +213,8 @@ namespace Dockhound.Interactions
             try
             {
                 var log = new LogEvent(
-                    eventName: "Ally Approved",
+                    eventType: LogEventType.AllyApproved,
+                    guildId: Context.Guild.Id,
                     messageId: comp.Message.Id,
                     username: Context.User.Username,
                     userId: Context.User.Id,
@@ -311,7 +313,8 @@ namespace Dockhound.Interactions
             try
             {
                 var log = new LogEvent(
-                    eventName: "Ally Denied",
+                    eventType: LogEventType.AllyDenied,
+                    guildId: Context.Guild.Id,
                     messageId: reviewMessage.Id,
                     username: Context.User.Username,
                     userId: Context.User.Id,
