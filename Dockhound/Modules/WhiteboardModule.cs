@@ -3,6 +3,7 @@ using Discord.Interactions;
 using Dockhound.Components;
 using Dockhound.Enums;
 using Dockhound.Models;
+using Dockhound.Services;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -23,6 +24,12 @@ namespace Dockhound.Modules
             {
                 _db = db;
             }
+
+            private async Task<bool> CanEditAsync(IGuildUser user, long wbId)
+                => await WhiteboardAccessService.CanEditAsync(_db, Context, user, wbId);
+
+            private async Task<bool> CanModerateAsync(IGuildUser user, long wbId)
+                => await WhiteboardAccessService.CanModerateAsync(_db, Context, user, wbId);
 
             [SlashCommand("create", "Create a new whiteboard")]
             public async Task CreateAsync(string title, AccessRestriction mode = AccessRestriction.Open)
@@ -75,9 +82,9 @@ namespace Dockhound.Modules
                 if (mode == AccessRestriction.MembersOnly)
                 {
                     var caller = (IGuildUser)Context.User;
-                    if (!caller.GuildPermissions.ManageChannels)
+                    if (!await CanEditAsync(caller, wb.Id))
                     {
-                        await FollowupAsync("Whiteboard is in **MembersOnly** mode, but you need **Manage Channels** to set allowed roles.", ephemeral: true);
+                        await FollowupAsync("You don’t have permission to edit this whiteboard.", ephemeral: true);
                         return;
                     }
 
@@ -102,13 +109,6 @@ namespace Dockhound.Modules
             {
                 ulong.TryParse(messageId, out ulong messageIdUlong);
 
-                var caller = (IGuildUser)Context.User;
-                if (!caller.GuildPermissions.ManageChannels)
-                {
-                    await RespondAsync("You need **Manage Channel** to change whiteboard mode.", ephemeral: true);
-                    return;
-                }
-
                 var wb = await _db.Whiteboards
                     .Include(w => w.Roles)
                     .Include(w => w.Versions)
@@ -117,6 +117,13 @@ namespace Dockhound.Modules
                 if (wb is null)
                 {
                     await RespondAsync("Whiteboard not found for that message.", ephemeral: true);
+                    return;
+                }
+
+                var caller = (IGuildUser)Context.User;
+                if (!await CanEditAsync(caller, wb.Id))
+                {
+                    await RespondAsync("You don’t have permission to edit this whiteboard.", ephemeral: true);
                     return;
                 }
 
@@ -154,19 +161,19 @@ namespace Dockhound.Modules
             {
                 ulong.TryParse(messageId, out ulong messageIdUlong);
 
-                var caller = (IGuildUser)Context.User;
-                if (!caller.GuildPermissions.ManageChannels)
-                {
-                    await RespondAsync("You need **Manage Channel** to set allowed roles.", ephemeral: true);
-                    return;
-                }
-
                 var wb = await _db.Whiteboards
                     .FirstOrDefaultAsync(w => w.MessageId == messageIdUlong && w.GuildId == Context.Guild.Id);
 
                 if (wb is null)
                 {
                     await RespondAsync("Whiteboard not found for that message.", ephemeral: true);
+                    return;
+                }
+
+                var caller = (IGuildUser)Context.User;
+                if (!await CanEditAsync(caller, wb.Id))
+                {
+                    await RespondAsync("You don’t have permission to edit this whiteboard.", ephemeral: true);
                     return;
                 }
 
@@ -232,7 +239,7 @@ namespace Dockhound.Modules
                     .WithFooter($"WhiteboardId: {wb.Id} • MessageId: {wb.MessageId}");
 
                 var caller = (IGuildUser)Context.User;
-                if (caller.GuildPermissions.ManageChannels)
+                if (await CanEditAsync(caller, wb.Id))
                 {
                     var last5 = wb.Versions
                         .OrderByDescending(v => v.VersionIndex)
@@ -256,13 +263,6 @@ namespace Dockhound.Modules
             {
                 ulong.TryParse(messageId, out ulong messageIdUlong);
 
-                var caller = (IGuildUser)Context.User;
-                if (!caller.GuildPermissions.ManageChannels)
-                {
-                    await RespondAsync("You need **Manage Channels** to archive/unarchive a whiteboard.", ephemeral: true);
-                    return;
-                }
-
                 var wb = await _db.Whiteboards
                     .Include(w => w.Versions)
                     .FirstOrDefaultAsync(w => w.MessageId == messageIdUlong && w.GuildId == Context.Guild.Id);
@@ -270,6 +270,13 @@ namespace Dockhound.Modules
                 if (wb is null)
                 {
                     await RespondAsync("Whiteboard not found for that message.", ephemeral: true);
+                    return;
+                }
+
+                var caller = (IGuildUser)Context.User;
+                if (!await CanModerateAsync(caller, wb.Id))
+                {
+                    await RespondAsync("You need **Manage Channel** or **Pin Messages** to archive/unarchive a whiteboard.", ephemeral: true);
                     return;
                 }
 
