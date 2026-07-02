@@ -9,6 +9,8 @@ The honeypot system helps server administrators remove spam accounts by automati
 1. **Trap channel:** any non-bot user who sends a message in the configured channel is banned.
 2. **Reaction trap:** any non-bot user who reacts to the configured message is banned.
 
+The top-level **Enabled** setting is the master enforcement switch. When it is enabled, administrators can independently enable the message watcher, the reaction watcher, or both. When it is disabled, no honeypot bans are enforced.
+
 When a user is banned, Dockhound posts a report embed to the configured report channel. If no report channel is set, it falls back to the server system channel or safety alerts channel when available.
 
 !> **Warning** Honeypot actions are automatic bans. Place trap channels and trap messages where regular members will not accidentally interact with them.
@@ -49,6 +51,7 @@ Show the current honeypot configuration for the server.
 **Behavior**
 
 - Shows whether enforcement is enabled.
+- Shows whether the message watcher and reaction watcher are enabled.
 - Shows the configured trap channel.
 - Shows the configured reaction trap channel and message id.
 - Shows the current message prune days setting.
@@ -63,11 +66,13 @@ Enable or disable honeypot enforcement.
 
 **Usage**
 
-- `/dockadmin honeypot enable <enabled>`
+- `/dockadmin honeypot enable <enabled> [messages_enabled] [reactions_enabled]`
 
 **Parameters**
 
 - `enabled`: `true` to enable enforcement, `false` to disable enforcement.
+- `messages_enabled`: Optional. `true` to listen for trap-channel messages, `false` to ignore them.
+- `reactions_enabled`: Optional. `true` to listen for reaction-trap reactions, `false` to ignore them.
 
 **Permissions**
 
@@ -76,7 +81,10 @@ Enable or disable honeypot enforcement.
 **Behavior**
 
 - Updates the server honeypot enabled state.
-- Disabling enforcement keeps the saved trap channel and reaction message settings, but stops automatic bans until re-enabled.
+- If watcher parameters are omitted, their current settings are preserved.
+- Enabling enforcement is rejected if both the message watcher and reaction watcher would be disabled.
+- Disabling enforcement keeps the saved trap channel, reaction message, and watcher settings, but stops automatic bans until re-enabled.
+- Valid active modes are messages only, reactions only, or both. Honeypot enforcement can also be globally disabled.
 
 ---
 ### Set Channel
@@ -101,6 +109,7 @@ Set the trap channel. Any non-bot user who sends a message in this channel will 
 
 - Saves the selected channel as the trap channel.
 - Enables honeypot enforcement automatically.
+- Does not change whether the message watcher is enabled. If the watcher is disabled, Dockhound warns that the trap will not ban until it is enabled.
 - If a user triggers the trap, Dockhound attempts to ban them and posts a moderator report.
 
 ---
@@ -175,6 +184,7 @@ Register an existing message as a reaction trap. Any non-bot user who reacts to 
 
 - Saves the selected channel and message id as the reaction trap.
 - Enables honeypot enforcement automatically.
+- Does not change whether the reaction watcher is enabled. If the watcher is disabled, Dockhound warns that the trap will not ban until it is enabled.
 - Rejects message ids that are not valid unsigned numbers.
 
 ---
@@ -201,6 +211,7 @@ Post a new honeypot embed in the current channel and register it as the reaction
 - Posts a honeypot embed in the current message channel.
 - Saves the new message as the reaction trap.
 - Enables honeypot enforcement automatically.
+- Does not change whether the reaction watcher is enabled. If the watcher is disabled, Dockhound warns that the trap will not ban until it is enabled.
 - The embed tracks **Bots Squashed** and **Saving Graces** counters.
 
 ## Moderator Review

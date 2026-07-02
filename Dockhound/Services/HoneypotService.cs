@@ -29,7 +29,7 @@ namespace Dockhound.Services
                 return;
 
             var cfg = await _guildSettingsService.GetAsync(channel.Guild.Id);
-            if (!cfg.Honeypot.Enabled || cfg.Honeypot.ChannelId != channel.Id)
+            if (!cfg.Honeypot.Enabled || !cfg.Honeypot.MessagesEnabled || cfg.Honeypot.ChannelId != channel.Id)
                 return;
 
             await BanAndReportAsync(
@@ -54,6 +54,7 @@ namespace Dockhound.Services
 
             var cfg = await _guildSettingsService.GetAsync(textChannel.Guild.Id);
             if (!cfg.Honeypot.Enabled ||
+                !cfg.Honeypot.ReactionsEnabled ||
                 cfg.Honeypot.ReactionChannelId != textChannel.Id ||
                 cfg.Honeypot.ReactionMessageId != message.Id)
                 return;

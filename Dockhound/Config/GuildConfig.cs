@@ -40,6 +40,8 @@ namespace Dockhound.Config
         public sealed class HoneypotSettings
         {
             public bool Enabled { get; set; } = false;
+            public bool MessagesEnabled { get; set; } = true;
+            public bool ReactionsEnabled { get; set; } = true;
             public ulong? ChannelId { get; set; }
             public ulong? ReactionChannelId { get; set; }
             public ulong? ReactionMessageId { get; set; }
