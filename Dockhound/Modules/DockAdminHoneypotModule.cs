@@ -18,7 +18,7 @@ namespace Dockhound.Modules
                 _honeypotService = honeypotService;
             }
 
-                [RequireUserPermission(GuildPermission.Administrator)]
+                [RequireUserPermission(GuildPermission.ManageGuild)]
                 [SlashCommand("status", "Show current honeypot settings.")]
                 public async Task StatusAsync()
                 {
@@ -43,7 +43,7 @@ namespace Dockhound.Modules
                     await FollowupAsync(embed: embed, ephemeral: true);
                 }
 
-                [RequireUserPermission(GuildPermission.Administrator)]
+                [RequireUserPermission(GuildPermission.ManageGuild)]
                 [SlashCommand("enable", "Enable or disable honeypot enforcement.")]
                 public async Task EnableAsync(bool enabled)
                 {
@@ -57,7 +57,7 @@ namespace Dockhound.Modules
                     await FollowupAsync($"Honeypot enforcement is now {(enabled ? "enabled" : "disabled")}.", ephemeral: true);
                 }
 
-                [RequireUserPermission(GuildPermission.Administrator)]
+                [RequireUserPermission(GuildPermission.ManageGuild)]
                 [SlashCommand("set-channel", "Ban anyone who sends a message in this channel.")]
                 public async Task SetChannelAsync(ITextChannel channel)
                 {
@@ -75,7 +75,7 @@ namespace Dockhound.Modules
                     await FollowupAsync($"Honeypot trap channel set to {channel.Mention}.", ephemeral: true);
                 }
 
-                [RequireUserPermission(GuildPermission.Administrator)]
+                [RequireUserPermission(GuildPermission.ManageGuild)]
                 [SlashCommand("set-report-channel", "Set the channel where honeypot bans are reported.")]
                 public async Task SetReportChannelAsync(ITextChannel channel)
                 {
@@ -89,7 +89,7 @@ namespace Dockhound.Modules
                     await FollowupAsync($"Honeypot reports will be sent to {channel.Mention}.", ephemeral: true);
                 }
 
-                [RequireUserPermission(GuildPermission.Administrator)]
+                [RequireUserPermission(GuildPermission.ManageGuild)]
                 [SlashCommand("set-prune-days", "Set how many days of messages to prune when the honeypot bans a user.")]
                 public async Task SetPruneDaysAsync(
                     [Summary("days", "Number of days to prune, from 0 to 7.")] int days)
@@ -110,7 +110,7 @@ namespace Dockhound.Modules
                     await FollowupAsync($"Honeypot bans will prune `{days}` day(s) of messages.", ephemeral: true);
                 }
 
-                [RequireUserPermission(GuildPermission.Administrator)]
+                [RequireUserPermission(GuildPermission.ManageGuild)]
                 [SlashCommand("set-reaction-message", "Ban anyone who reacts to a specific message.")]
                 public async Task SetReactionMessageAsync(ITextChannel channel, string messageId)
                 {
@@ -135,7 +135,7 @@ namespace Dockhound.Modules
                     await FollowupAsync($"Reaction honeypot set to message `{parsedMessageId}` in {channel.Mention}.", ephemeral: true);
                 }
 
-                [RequireUserPermission(GuildPermission.Administrator)]
+                [RequireUserPermission(GuildPermission.ManageGuild)]
                 [SlashCommand("create-honeypot", "Post and register a honeypot reaction message in this channel.")]
                 public async Task CreateHoneypotAsync(string? content = null)
                 {

@@ -44,7 +44,7 @@ Show the current honeypot configuration for the server.
 
 **Permissions**
 
-- Requires **Administrator** permission.
+- Requires **Manage Server** permission.
 
 **Behavior**
 
@@ -71,7 +71,7 @@ Enable or disable honeypot enforcement.
 
 **Permissions**
 
-- Requires **Administrator** permission.
+- Requires **Manage Server** permission.
 
 **Behavior**
 
@@ -95,7 +95,7 @@ Set the trap channel. Any non-bot user who sends a message in this channel will 
 
 **Permissions**
 
-- Requires **Administrator** permission.
+- Requires **Manage Server** permission.
 
 **Behavior**
 
@@ -120,7 +120,7 @@ Set the channel where honeypot reports are posted.
 
 **Permissions**
 
-- Requires **Administrator** permission.
+- Requires **Manage Server** permission.
 
 **Behavior**
 
@@ -144,7 +144,7 @@ Set how many days of a banned user's messages Discord should prune when the hone
 
 **Permissions**
 
-- Requires **Administrator** permission.
+- Requires **Manage Server** permission.
 
 **Behavior**
 
@@ -169,7 +169,7 @@ Register an existing message as a reaction trap. Any non-bot user who reacts to 
 
 **Permissions**
 
-- Requires **Administrator** permission.
+- Requires **Manage Server** permission.
 
 **Behavior**
 
@@ -194,7 +194,7 @@ Post a new honeypot embed in the current channel and register it as the reaction
 
 **Permissions**
 
-- Requires **Administrator** permission.
+- Requires **Manage Server** permission.
 
 **Behavior**
 

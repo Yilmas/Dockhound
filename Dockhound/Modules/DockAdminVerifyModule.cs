@@ -23,7 +23,7 @@ namespace Dockhound.Modules
                 _guildSettingsService = guildSettingsService;
             }
 
-                [RequireUserPermission(GuildPermission.Administrator)]
+                [RequireUserPermission(GuildPermission.ManageGuild)]
                 [SlashCommand("info", "Provides information on the verification process.")]
                 public async Task VerifyInfo()
                 {
@@ -56,7 +56,7 @@ namespace Dockhound.Modules
                     await FollowupAsync(embed: embedInfo, components: VerifyComponents.BuildInfoComponents(), ephemeral: true);
                 }
 
-                [RequireUserPermission(GuildPermission.Administrator)]
+                [RequireUserPermission(GuildPermission.ManageGuild)]
                 [SlashCommand("restrict", "Set verification access mode")]
                 public async Task VerifyRestrict([Summary("setting", "Restricted / MembersOnly / Open")] AccessRestriction accessLevel)
                 {

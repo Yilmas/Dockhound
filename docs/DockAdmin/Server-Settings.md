@@ -34,7 +34,7 @@ Download the current guild's saved settings as a JSON file. Useful for backups a
 
 **Permissions**
 
-- Requires **Administrator** permission.
+- Requires **Manage Server** permission.
 
 **Behavior**
 
@@ -57,7 +57,7 @@ Update the stored guild name and/or short tag used by the bot's internal data.
 
 **Permissions**
 
-- Requires **Administrator** permission.
+- Requires **Manage Server** permission.
 
 ## Config Update
 
@@ -75,7 +75,7 @@ Upload a GuildConfig JSON file to update the guild's configuration.
 
 **Permissions**
 
-- Requires **Administrator** permission.
+- Requires **Manage Server** permission.
 
 **Behavior**
 
