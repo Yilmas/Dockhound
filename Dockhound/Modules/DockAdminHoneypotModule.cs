@@ -31,6 +31,8 @@ namespace Dockhound.Modules
                         .WithTitle("Honeypot Settings")
                         .WithColor(hp.Enabled ? Color.Green : Color.DarkGrey)
                         .AddField("Enabled", hp.Enabled ? "Yes" : "No", inline: true)
+                        .AddField("Messages", hp.MessagesEnabled ? "Enabled" : "Disabled", inline: true)
+                        .AddField("Reactions", hp.ReactionsEnabled ? "Enabled" : "Disabled", inline: true)
                         .AddField("Trap Channel", hp.ChannelId.HasValue ? $"<#{hp.ChannelId.Value}>" : "-", inline: true)
                         .AddField("Reaction Trap", hp.ReactionChannelId.HasValue && hp.ReactionMessageId.HasValue
                             ? $"<#{hp.ReactionChannelId.Value}> / `{hp.ReactionMessageId.Value}`"
@@ -45,16 +47,38 @@ namespace Dockhound.Modules
 
                 [RequireUserPermission(GuildPermission.ManageGuild)]
                 [SlashCommand("enable", "Enable or disable honeypot enforcement.")]
-                public async Task EnableAsync(bool enabled)
+                public async Task EnableAsync(
+                    bool enabled,
+                    [Summary("messages_enabled", "Enable or disable the message watcher. Omit to keep the current setting.")] bool? messagesEnabled = null,
+                    [Summary("reactions_enabled", "Enable or disable the reaction watcher. Omit to keep the current setting.")] bool? reactionsEnabled = null)
                 {
                     await DeferAsync(ephemeral: true);
 
+                    var current = await _guildSettingsService.GetAsync(Context.Guild.Id);
+                    var nextMessagesEnabled = messagesEnabled ?? current.Honeypot.MessagesEnabled;
+                    var nextReactionsEnabled = reactionsEnabled ?? current.Honeypot.ReactionsEnabled;
+
+                    if (enabled && !nextMessagesEnabled && !nextReactionsEnabled)
+                    {
+                        await FollowupAsync("Honeypot enforcement cannot be enabled while both message and reaction watchers are disabled.", ephemeral: true);
+                        return;
+                    }
+
                     await _guildSettingsService.PatchAsync(
                         Context.Guild.Id,
-                        cfg => cfg.Honeypot.Enabled = enabled,
+                        cfg =>
+                        {
+                            cfg.Honeypot.Enabled = enabled;
+                            if (messagesEnabled.HasValue)
+                                cfg.Honeypot.MessagesEnabled = messagesEnabled.Value;
+                            if (reactionsEnabled.HasValue)
+                                cfg.Honeypot.ReactionsEnabled = reactionsEnabled.Value;
+                        },
                         $"{Context.User.Username}#{Context.User.Id}");
 
-                    await FollowupAsync($"Honeypot enforcement is now {(enabled ? "enabled" : "disabled")}.", ephemeral: true);
+                    await FollowupAsync(
+                        $"Honeypot enforcement is now {(enabled ? "enabled" : "disabled")}. Messages: {EnabledText(nextMessagesEnabled)}. Reactions: {EnabledText(nextReactionsEnabled)}.",
+                        ephemeral: true);
                 }
 
                 [RequireUserPermission(GuildPermission.ManageGuild)]
@@ -63,7 +87,7 @@ namespace Dockhound.Modules
                 {
                     await DeferAsync(ephemeral: true);
 
-                    await _guildSettingsService.PatchAsync(
+                    var cfg = await _guildSettingsService.PatchAsync(
                         Context.Guild.Id,
                         cfg =>
                         {
@@ -72,7 +96,9 @@ namespace Dockhound.Modules
                         },
                         $"{Context.User.Username}#{Context.User.Id}");
 
-                    await FollowupAsync($"Honeypot trap channel set to {channel.Mention}.", ephemeral: true);
+                    await FollowupAsync(
+                        $"Honeypot trap channel set to {channel.Mention}.{WatcherDisabledWarning(cfg.Honeypot.MessagesEnabled, "message")}",
+                        ephemeral: true);
                 }
 
                 [RequireUserPermission(GuildPermission.ManageGuild)]
@@ -122,7 +148,7 @@ namespace Dockhound.Modules
                         return;
                     }
 
-                    await _guildSettingsService.PatchAsync(
+                    var cfg = await _guildSettingsService.PatchAsync(
                         Context.Guild.Id,
                         cfg =>
                         {
@@ -132,7 +158,9 @@ namespace Dockhound.Modules
                         },
                         $"{Context.User.Username}#{Context.User.Id}");
 
-                    await FollowupAsync($"Reaction honeypot set to message `{parsedMessageId}` in {channel.Mention}.", ephemeral: true);
+                    await FollowupAsync(
+                        $"Reaction honeypot set to message `{parsedMessageId}` in {channel.Mention}.{WatcherDisabledWarning(cfg.Honeypot.ReactionsEnabled, "reaction")}",
+                        ephemeral: true);
                 }
 
                 [RequireUserPermission(GuildPermission.ManageGuild)]
@@ -148,9 +176,20 @@ namespace Dockhound.Modules
                     }
 
                     var message = await _honeypotService.CreateHoneypotMessageAsync(Context.Guild, channel, Context.User, content);
+                    var cfg = await _guildSettingsService.GetAsync(Context.Guild.Id);
 
-                    await FollowupAsync($"Honeypot message created and registered: `{message.Id}`.", ephemeral: true);
+                    await FollowupAsync(
+                        $"Honeypot message created and registered: `{message.Id}`.{WatcherDisabledWarning(cfg.Honeypot.ReactionsEnabled, "reaction")}",
+                        ephemeral: true);
                 }
+
+                private static string EnabledText(bool enabled)
+                    => enabled ? "enabled" : "disabled";
+
+                private static string WatcherDisabledWarning(bool watcherEnabled, string watcherName)
+                    => watcherEnabled
+                        ? string.Empty
+                        : $" The {watcherName} watcher is currently disabled, so this trap will not ban users until it is enabled.";
         }
     }
 }
