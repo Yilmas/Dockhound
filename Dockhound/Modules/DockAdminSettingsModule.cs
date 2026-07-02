@@ -40,7 +40,7 @@ namespace Dockhound.Modules
                 _dbFactory = dbFactory;
             }
 
-                [RequireUserPermission(GuildPermission.Administrator)]
+                [RequireUserPermission(GuildPermission.ManageGuild)]
                 [SlashCommand("view", "Displays current guild settings")]
                 public async Task GetGuildSettings()
                 {
@@ -65,7 +65,7 @@ namespace Dockhound.Modules
                 }
 
                 [RequireContext(ContextType.Guild)]
-                [RequireUserPermission(GuildPermission.Administrator)]
+                [RequireUserPermission(GuildPermission.ManageGuild)]
                 [SlashCommand("config-update", "Upload a GuildConfig JSON file to update this guild's configuration.")]
                 public async Task UpdateConfigAsync(
                     [Summary("file", "JSON file containing Dockhound GuildConfig")] IAttachment file)
@@ -178,7 +178,7 @@ namespace Dockhound.Modules
                 }
 
                 [RequireContext(ContextType.Guild)]
-                [RequireUserPermission(GuildPermission.Administrator)]
+                [RequireUserPermission(GuildPermission.ManageGuild)]
                 [SlashCommand("guild-update", "Update this guild's name and tag.")]
                 public async Task UpdateGuildAsync(
                     [Summary("name", "New name of the guild")] string? name = null,

@@ -18,7 +18,7 @@ Post an informational verification embed in the current channel and save its cha
 
 **Permissions**
 
-- Requires **Administrator** permission.
+- Requires **Manage Server** permission.
 
 **Behavior**
 
@@ -44,7 +44,7 @@ Set the verification access mode for the guild (Open / MembersOnly / Restricted)
 
 **Permissions**
 
-- Requires **Administrator** permission.
+- Requires **Manage Server** permission.
 
 **Behavior**
 

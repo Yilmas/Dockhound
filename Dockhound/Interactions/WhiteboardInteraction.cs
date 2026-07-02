@@ -7,6 +7,7 @@ using Dockhound.Extensions;
 using Dockhound.Logs;
 using Dockhound.Modals;
 using Dockhound.Models;
+using Dockhound.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using System.Text;
@@ -27,40 +28,7 @@ namespace Dockhound.Interactions
         }
 
         private async Task<bool> CanEditAsync(IGuildUser user, long wbId)
-        {
-            var wb = await _dbContext.Whiteboards
-                .AsNoTracking()
-                .Where(w => w.Id == wbId)
-                .Select(w => new { w.Mode, w.ChannelId })
-                .FirstOrDefaultAsync();
-
-            if (wb is null) return false;
-
-            // Channel-level permission check using permission overwrites:
-            if (Context.Guild is SocketGuild sg)
-            {
-                var channel = sg.GetTextChannel(wb.ChannelId);
-                if (channel is not null)
-                {
-                    // Resolve a SocketGuildUser when possible (needed for GetPermissions)
-                    var socketUser = sg.GetUser(user.Id) ?? (user as SocketGuildUser);
-                    if (socketUser is not null)
-                    {
-                        // Use the user's channel permissions (this accounts for overwrites)
-                        var perms = socketUser.GetPermissions(channel);
-                        if (perms.ManageChannel || perms.PinMessages)
-                            return true;
-                    }
-                }
-            }
-
-            if (wb.Mode == AccessRestriction.Open) return true;
-            if (wb.Mode != AccessRestriction.MembersOnly) return false;
-
-            var userRoleIds = user.RoleIds.ToArray();
-            return await _dbContext.WhiteboardRoles
-                .AnyAsync(r => r.WhiteboardId == wbId && userRoleIds.Contains(r.RoleId));
-        }
+            => await WhiteboardAccessService.CanEditAsync(_dbContext, Context, user, wbId);
 
         [ComponentInteraction("wb:edit:*")]
         public async Task EditWhiteboardAsync(string wbIdStr)
@@ -135,6 +103,19 @@ namespace Dockhound.Interactions
             if (wb is null)
             {
                 await FollowupAsync("Whiteboard not found.", ephemeral: true);
+                return;
+            }
+
+            var caller = (IGuildUser)Context.User;
+            if (!await CanEditAsync(caller, wb.Id))
+            {
+                await FollowupAsync("You don’t have permission to edit this whiteboard.", ephemeral: true);
+                return;
+            }
+
+            if (wb.IsArchived)
+            {
+                await FollowupAsync("This whiteboard is archived and cannot be modified.", ephemeral: true);
                 return;
             }
 
@@ -279,55 +260,16 @@ namespace Dockhound.Interactions
 
             var caller = (IGuildUser)Context.User;
 
-            // Load whiteboard early so we can inspect its channel for channel-level permission checks
             var wb = await _dbContext.Whiteboards
                 .FirstOrDefaultAsync(w => w.Id == wbId && w.GuildId == Context.Guild.Id);
 
             if (wb is null)
                 return;
 
-            // Channel-level permission check using permission overwrites:
-            if (Context.Guild is SocketGuild sg)
+            if (!await CanEditAsync(caller, wbId))
             {
-                var channel = sg.GetTextChannel(wb.ChannelId);
-                if (channel is not null)
-                {
-                    // Resolve a SocketGuildUser when possible (needed for GetPermissions)
-                    var socketUser = sg.GetUser(caller.Id) ?? (caller as SocketGuildUser);
-                    if (socketUser is not null)
-                    {
-                        // Use the user's channel permissions (this accounts for overwrites)
-                        var perms = socketUser.GetPermissions(channel);
-                        if (perms.ManageChannel || perms.PinMessages)
-                        {
-                            // allowed — continue to history logic below
-                        }
-                        else
-                        {
-                            await RespondAsync("History requires **Moderator-level channel permissions**.", ephemeral: true);
-                            return;
-                        }
-                    }
-                    else
-                    {
-                        await RespondAsync("History requires **Moderator-level channel permissions**.", ephemeral: true);
-                        return;
-                    }
-                }
-                else
-                {
-                    await RespondAsync("Could not resolve the whiteboard channel for permission check.", ephemeral: true);
-                    return;
-                }
-            }
-            else
-            {
-                // Fallback for non-socket guilds: keep original guild-permission check
-                if (!caller.GuildPermissions.ManageChannels)
-                {
-                    await RespondAsync("History requires **Manage Channels**.", ephemeral: true);
-                    return;
-                }
+                await RespondAsync("You don’t have permission to edit this whiteboard.", ephemeral: true);
+                return;
             }
 
             if (wb.IsArchived)
@@ -396,6 +338,10 @@ namespace Dockhound.Interactions
                 !int.TryParse(parts[1].Substring(2), out var verIdx))
             { await RespondAsync("Could not parse version data.", ephemeral: true); return; }
 
+            var caller = (IGuildUser)Context.User;
+            if (!await CanEditAsync(caller, wbId))
+            { await RespondAsync("You don’t have permission to edit this whiteboard.", ephemeral: true); return; }
+
             await DeferAsync(ephemeral: true);
 
             var comps = new ComponentBuilder()
@@ -415,8 +361,8 @@ namespace Dockhound.Interactions
             { await RespondAsync("Invalid whiteboard id.", ephemeral: true); return; }
 
             var caller = (IGuildUser)Context.User;
-            if (!caller.GuildPermissions.ManageChannels)
-            { await RespondAsync("History requires **Manage Channels**.", ephemeral: true); return; }
+            if (!await CanEditAsync(caller, wbId))
+            { await RespondAsync("You don’t have permission to edit this whiteboard.", ephemeral: true); return; }
 
             var versions = await _dbContext.WhiteboardVersions
                 .Where(v => v.WhiteboardId == wbId)
@@ -476,6 +422,13 @@ namespace Dockhound.Interactions
             if (sourceWb is null)
             {
                 await FollowupAsync("Source whiteboard not found.", ephemeral: true);
+                return;
+            }
+
+            var caller = (IGuildUser)Context.User;
+            if (!await CanEditAsync(caller, sourceWb.Id))
+            {
+                await FollowupAsync("You don’t have permission to edit this whiteboard.", ephemeral: true);
                 return;
             }
 
@@ -546,12 +499,6 @@ namespace Dockhound.Interactions
         public async Task PickRolesAsync(string messageIdStr, string[] values)
         {
             var caller = (IGuildUser)Context.User;
-            if (!caller.GuildPermissions.ManageChannels)
-            {
-                await RespondAsync("You need **Manage Channel** to set allowed roles.", ephemeral: true);
-                return;
-            }
-
             if (!ulong.TryParse(messageIdStr, out var messageId))
                 return;
 
@@ -562,6 +509,12 @@ namespace Dockhound.Interactions
 
             if (wb is null)
                 return;
+
+            if (!await CanEditAsync(caller, wb.Id))
+            {
+                await RespondAsync("You don’t have permission to edit this whiteboard.", ephemeral: true);
+                return;
+            }
 
             if (wb.Mode != AccessRestriction.MembersOnly)
             {

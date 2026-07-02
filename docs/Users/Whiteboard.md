@@ -51,14 +51,14 @@ Create a new collaborative whiteboard in the current channel.
 
 **Permissions**
 
-- Any user can run this command to create a whiteboard. If you choose MembersOnly mode, the command will prompt for roles. Setting allowed roles requires **Manage Channels** permission.
+- Any user can run this command to create a whiteboard in the current channel.
+- If `MembersOnly` mode is selected, choosing allowed roles requires the creator to be able to edit the new whiteboard. Users with channel-level **Manage Channel** or **Pin Messages** can do this immediately. First-time `MembersOnly` setup should usually be done by one of those users, because no allowed roles exist yet.
 
 **Behavior**
 
 - Creates a Whiteboard entity persisted to the database.
 - Seeds an initial empty version (v1) and posts an embed message in the channel containing the whiteboard.
-- If MembersOnly is selected and the invoker lacks Manage Channels, the bot notifies that Manage Channels is required to set roles.
-- If the invoker has Manage Channels and chose MembersOnly, a role select menu is presented in a follow-up to pick allowed roles.
+- If `MembersOnly` is selected and the creator has editor access, a role select menu is presented in a follow-up to pick allowed roles.
 
 ---
 ### Mode
@@ -78,7 +78,11 @@ Change the restriction mode of an existing whiteboard.
 
 **Permissions**
 
-- The caller must have **Manage Channels** in the guild.
+- The caller must be able to edit the whiteboard.
+- Users with channel-level **Manage Channel** or **Pin Messages** can edit any whiteboard in that channel.
+- `Open` whiteboards can be edited by any guild user.
+- `MembersOnly` whiteboards can be edited by users with one of the allowed roles.
+- `Restricted` whiteboards can only be edited by users with channel-level **Manage Channel** or **Pin Messages**.
 
 **Behavior**
 
@@ -103,7 +107,10 @@ Set or update allowed roles for a MembersOnly whiteboard.
 
 **Permissions**
 
-- The caller must have **Manage Channels** in the guild.
+- The caller must be able to edit the whiteboard.
+- Users with channel-level **Manage Channel** or **Pin Messages** can edit any whiteboard in that channel.
+- `MembersOnly` whiteboards can be edited by users with one of the allowed roles.
+- `Open` whiteboards can be edited by any guild user, but this command only applies when the target whiteboard is currently `MembersOnly`.
 
 **Behavior**
 
@@ -128,11 +135,16 @@ Show details about a whiteboard, including allowed roles, creator, latest versio
 **Permissions**
 
 - Any user can run this command to view details.
+- Recent edit history is only included when the caller can edit the whiteboard.
+- Users with channel-level **Manage Channel** or **Pin Messages** can see recent edit history for any whiteboard in that channel.
+- For `Open` whiteboards, any guild user can see recent edit history.
+- For `MembersOnly` whiteboards, users with one of the allowed roles can see recent edit history.
+- For `Restricted` whiteboards, only users with channel-level **Manage Channel** or **Pin Messages** can see recent edit history.
 
 **Behavior**
 
 - Retrieves the whiteboard and versions, builds an embed with fields: Title, Channel, Mode, Allowed Roles, Created, Archived, Latest Version.
-- If the caller has **Manage Channels**, additional recent edit history is included.
+- If the caller can edit the whiteboard, additional recent edit history is included.
 
 ---
 ### Archive
@@ -151,7 +163,7 @@ Toggle archive state on a whiteboard (close or reopen it).
 
 **Permissions**
 
-- The caller must have **Manage Channels** in the guild.
+- The caller must have channel-level **Manage Channel** or **Pin Messages** on the whiteboard channel.
 
 **Behavior**
 
