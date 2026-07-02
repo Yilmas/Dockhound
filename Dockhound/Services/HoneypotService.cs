@@ -136,7 +136,8 @@ namespace Dockhound.Services
             try
             {
                 _dbContext.LogEvents.Add(new LogEvent(
-                    eventName: "Honeypot Ban",
+                    eventType: LogEventType.HoneypotBan,
+                    guildId: guild.Id,
                     messageId: sourceMessageId,
                     username: user.Username,
                     userId: user.Id,

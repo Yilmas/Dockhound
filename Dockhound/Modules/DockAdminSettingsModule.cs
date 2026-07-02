@@ -1,12 +1,12 @@
 using Discord;
 using Discord.Interactions;
 using Dockhound.Config;
+using Dockhound.Logs;
 using Dockhound.Models;
 using Dockhound.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
-using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -231,66 +231,129 @@ namespace Dockhound.Modules
                 }
 
                 [RequireUserPermission(GuildPermission.ViewAuditLog | GuildPermission.ManageMessages)]
-                [SlashCommand("logs-per-message", "Show all log events for a given message id over a given timespan in days")]
-                public async Task GetLogEvents([Summary("message_id", "The Discord message ID")] string messageId, [Summary("days_span", "Days into the past")] int daysSpan)
+                [SlashCommand("logs", "Export Dockhound log events matching optional filters.")]
+                public async Task ExportLogsAsync(
+                    [Summary("days", "Days into the past, from 1 to 365.")] int days,
+                    [Summary("user", "Only include events created by this user.")] IUser? user = null,
+                    [Summary("message_id", "Only include events for this Discord message ID.")] string? messageId = null,
+                    [Summary("event_type", "Only include this event type.")] LogEventType? eventType = null,
+                    [Summary("limit", "Maximum rows to export, from 1 to 5000.")] int limit = 1000)
                 {
                     await DeferAsync(ephemeral: true);
 
-                    daysSpan = -1 * daysSpan;
+                    var clampedDays = Math.Clamp(days, 1, 365);
+                    var clampedLimit = Math.Clamp(limit, 1, 5000);
+                    ulong? parsedMessageId = null;
 
-                    if (!ulong.TryParse(messageId, out var msgId))
+                    if (!string.IsNullOrWhiteSpace(messageId))
                     {
-                        await FollowupAsync("Invalid message ID format.", ephemeral: true);
-                        return;
+                        if (!ulong.TryParse(messageId, out var msgId))
+                        {
+                            await FollowupAsync("Invalid message ID format.", ephemeral: true);
+                            return;
+                        }
+
+                        parsedMessageId = msgId;
                     }
 
-                    var cutoff = DateTime.UtcNow.Date.AddDays(daysSpan);
-                    var logs = await _dbContext.LogEvents
-                        .Where(l => l.MessageId == msgId && l.Updated >= cutoff)
+                    var guildId = Context.Guild.Id;
+                    var generatedAt = DateTime.UtcNow;
+                    var cutoff = generatedAt.AddDays(-clampedDays);
+
+                    var query = _dbContext.LogEvents
+                        .AsNoTracking()
+                        .Where(l => l.GuildId == guildId && l.Updated >= cutoff);
+
+                    if (user is not null)
+                        query = query.Where(l => l.UserId == user.Id);
+
+                    if (parsedMessageId is ulong msgFilter)
+                        query = query.Where(l => l.MessageId == msgFilter);
+
+                    if (eventType is LogEventType typeFilter)
+                        query = query.Where(l => l.EventType == typeFilter);
+
+                    var logs = await query
+                        .OrderByDescending(l => l.Updated)
+                        .Take(clampedLimit + 1)
                         .ToListAsync();
 
-                    var weeklyCounts = logs
-                        .GroupBy(l =>
-                        {
-                            var dt = DateTime.SpecifyKind(l.Updated, DateTimeKind.Utc);
-                            return (Year: ISOWeek.GetYear(dt), Week: ISOWeek.GetWeekOfYear(dt));
-                        })
-                        .ToDictionary(g => g.Key, g => g.Count());
+                    var truncated = logs.Count > clampedLimit;
+                    if (truncated)
+                        logs = logs.Take(clampedLimit).ToList();
 
-                    static DateTime StartOfIsoWeek(DateTime d)
+                    var report = BuildLogExportReport(
+                        guildId,
+                        Context.Guild.Name,
+                        generatedAt,
+                        clampedDays,
+                        user,
+                        parsedMessageId,
+                        eventType,
+                        clampedLimit,
+                        truncated,
+                        logs);
+
+                    var bytes = Encoding.UTF8.GetBytes(report);
+                    await using var stream = new MemoryStream(bytes);
+                    var filename = $"dockhound-logs-{guildId}-{generatedAt:yyyyMMdd-HHmmss}.txt";
+
+                    await FollowupWithFileAsync(
+                        stream,
+                        filename,
+                        text: $"Exported {logs.Count} log event(s){(truncated ? $"; limited to the newest {clampedLimit}." : ".")}",
+                        ephemeral: true);
+                }
+
+                private static string BuildLogExportReport(
+                    ulong guildId,
+                    string guildName,
+                    DateTime generatedAtUtc,
+                    int days,
+                    IUser? user,
+                    ulong? messageId,
+                    LogEventType? eventType,
+                    int limit,
+                    bool truncated,
+                    IReadOnlyCollection<LogEvent> logs)
+                {
+                    var sb = new StringBuilder();
+
+                    sb.AppendLine("Dockhound Log Export");
+                    sb.AppendLine($"Guild: {guildName} ({guildId})");
+                    sb.AppendLine($"Generated: {generatedAtUtc:yyyy-MM-dd HH:mm:ss} UTC");
+                    sb.AppendLine("Filters:");
+                    sb.AppendLine($"  Days: {days}");
+                    sb.AppendLine($"  User: {(user is null ? "-" : $"{user.Username} ({user.Id})")}");
+                    sb.AppendLine($"  MessageId: {(messageId?.ToString() ?? "-")}");
+                    sb.AppendLine($"  EventType: {(eventType?.ToDisplayName() ?? "-")}");
+                    sb.AppendLine($"  Limit: {limit}");
+                    sb.AppendLine($"Results: {logs.Count}");
+                    sb.AppendLine($"Truncated: {(truncated ? "yes" : "no")}");
+                    sb.AppendLine();
+
+                    foreach (var log in logs)
                     {
-                        int dow = (int)d.DayOfWeek;
-                        int diff = (dow == 0 ? -6 : 1 - dow);
-                        return d.Date.AddDays(diff);
+                        sb.AppendLine($"[{DateTime.SpecifyKind(log.Updated, DateTimeKind.Utc):yyyy-MM-dd HH:mm:ss} UTC]");
+                        sb.AppendLine($"Event: {log.EventType.ToDisplayName()} ({log.EventType})");
+                        sb.AppendLine($"User: {log.Username} ({log.UserId})");
+                        sb.AppendLine($"MessageId: {log.MessageId}");
+                        sb.AppendLine("Changes:");
+                        sb.AppendLine(Indent(log.Changes));
+                        sb.AppendLine();
                     }
 
-                    var buckets = new List<(int Year, int Week, DateTime Start)>();
-                    var cursor = StartOfIsoWeek(cutoff);
-                    var end = DateTime.UtcNow.Date;
-                    while (cursor <= end)
-                    {
-                        buckets.Add((ISOWeek.GetYear(cursor), ISOWeek.GetWeekOfYear(cursor), cursor));
-                        cursor = cursor.AddDays(7);
-                    }
+                    return sb.ToString();
+                }
 
-                    var lines = new List<string>(buckets.Count);
-                    int total = 0;
-                    foreach (var b in buckets)
-                    {
-                        var key = (b.Year, b.Week);
-                        var count = weeklyCounts.TryGetValue(key, out var c) ? c : 0;
-                        total += count;
-                        lines.Add($"{b.Year}-W{b.Week:D2}  ({b.Start:dd MMM}) : {count}");
-                    }
+                private static string Indent(string? value)
+                {
+                    if (string.IsNullOrWhiteSpace(value))
+                        return "  -";
 
-                    var eb = new EmbedBuilder()
-                        .WithTitle($"Log events for message {messageId}")
-                        .WithColor(Color.DarkGrey)
-                        .AddField($"Total (last {daysSpan} days)", total, inline: true)
-                        .AddField("Weeks covered", buckets.Count, inline: true)
-                        .AddField("Weekly updates", "```\n" + string.Join("\n", lines) + "\n```", inline: false);
-
-                    await FollowupAsync(embed: eb.Build(), ephemeral: true);
+                    return string.Join(
+                        Environment.NewLine,
+                        value.Replace("\r\n", "\n").Split('\n').Select(line => $"  {line}"));
                 }
         }
     }

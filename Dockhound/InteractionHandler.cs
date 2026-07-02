@@ -302,7 +302,8 @@ public class InteractionHandler
             try
             {
                 var log = new LogEvent(
-                    eventName: "User Bookmarked a Message",
+                    eventType: LogEventType.UserBookmarkedMessage,
+                    guildId: guildId == 0 ? null : guildId,
                     messageId: messageId,
                     username: user.Username,
                     userId: user.Id,
